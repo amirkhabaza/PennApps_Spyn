@@ -16,7 +16,7 @@ from api import analyze_with_llm, SessionAggregator  # <-- aggregator for websit
 # -----------------------------
 FRAME_WIDTH  = 640
 FRAME_HEIGHT = 480
-LLM_COOLDOWN = 3.0  # seconds between Cerebras calls for same (category, action)
+LLM_COOLDOWN = 0.1  # seconds between Cerebras calls for same (category, action)
 
 CONTROL_WIN = "AR PT Coach — Controls (focus here)"
 
@@ -43,7 +43,7 @@ def draw_control_overlay(category, action, info_lines=None):
     Draw a tiny black window so cv2.waitKey can receive keystrokes.
     Shows current category/action and hotkeys.
     """
-    h, w = 150, 680
+    h, w = 170, 680
     img = np.zeros((h, w, 3), dtype=np.uint8)
 
     def put(y, text):
@@ -52,8 +52,9 @@ def draw_control_overlay(category, action, info_lines=None):
     put(24,  f"Mode: {DISPLAY_NAMES.get(category, category)}  |  Action: {action}")
     put(48,  "1=POSTURE   2=EXERCISE   3=SPORT")
     put(72,  "j=prev action   k=next action   q=quit")
+    put(96,  "r=reset session") 
     if info_lines:
-        y = 96
+        y = 120
         for line in info_lines[:2]:
             put(y, line)
             y += 22
@@ -211,6 +212,20 @@ def main():
                 action_idx = (action_idx + 1) % len(CATEGORIES[category])
                 print(f"→ Action: {CATEGORIES[category][action_idx]}")
                 last_query_key = None
+            elif key == ord('r'):
+                print("→ Reset requested. Confirm? (y/n): ", end="", flush=True)
+                confirm = input().strip().lower()
+
+                if confirm == "y":
+                    agg.reset()
+                    last_query_key = None
+                    print("→ Reset confirmed. Pausing for 3 seconds...")
+                    time.sleep(3)
+                else:
+                    print("→ Reset cancelled. Continuing session...")
+
+
+
 
     finally:
         cap.release()
