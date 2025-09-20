@@ -12,6 +12,7 @@ class Spyn {
         this.transparencyLevel = 'visible';
         this.isDragging = false;
         this.dragOffset = { x: 0, y: 0 };
+        this.exerciseActive = false;
         
         this.initializeElements();
         this.bindEvents();
@@ -52,6 +53,12 @@ class Spyn {
         // Exercise events
         if (this.startExerciseBtn) {
             this.startExerciseBtn.addEventListener('click', () => this.startExerciseAnalysis());
+        }
+        
+        // Add stop exercise button event
+        const stopExerciseBtn = document.getElementById('stopExerciseBtn');
+        if (stopExerciseBtn) {
+            stopExerciseBtn.addEventListener('click', () => this.stopExerciseAnalysis());
         }
         
         // Tab switching events
@@ -336,21 +343,123 @@ class Spyn {
     }
 
     startExerciseAnalysis() {
-        // Show the exercise analysis section
-        if (this.exerciseAnalysis) {
-            this.exerciseAnalysis.classList.remove('hidden');
+        if (this.exerciseActive) {
+            // Stop exercise analysis
+            this.stopExerciseAnalysis();
+        } else {
+            // Start exercise analysis
+            if (this.exerciseAnalysis) {
+                this.exerciseAnalysis.classList.remove('hidden');
+                
+                // Update button text and state
+                if (this.startExerciseBtn) {
+                    this.startExerciseBtn.textContent = 'Stop Exercise Analysis';
+                    this.startExerciseBtn.classList.remove('start-btn');
+                    this.startExerciseBtn.classList.add('stop-btn');
+                }
+                
+                // Initialize camera for exercise analysis
+                this.initializeExerciseCamera();
+                
+                // Start exercise simulation
+                this.startExerciseSimulation();
+                
+                this.exerciseActive = true;
+                console.log('Exercise analysis started');
+            }
+        }
+    }
+
+    async initializeExerciseCamera() {
+        const videoElement = document.getElementById('exerciseVideoElement');
+        const placeholder = document.getElementById('exerciseCameraPlaceholder');
+        const errorElement = document.getElementById('exerciseCameraError');
+
+        try {
+            // Request camera access
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    width: { ideal: 640 },
+                    height: { ideal: 480 },
+                    facingMode: 'user'
+                },
+                audio: false
+            });
+
+            // Set up video element
+            if (videoElement) {
+                videoElement.srcObject = stream;
+                videoElement.style.display = 'block';
+                if (placeholder) placeholder.style.display = 'none';
+                if (errorElement) errorElement.style.display = 'none';
+                
+                console.log('Exercise camera initialized successfully');
+            }
+        } catch (error) {
+            console.error('Error accessing camera for exercise analysis:', error);
             
-            // Update button text
-            if (this.startExerciseBtn) {
-                this.startExerciseBtn.textContent = '📹 Exercise Analysis Active';
-                this.startExerciseBtn.disabled = true;
+            // Show error message
+            if (errorElement) {
+                errorElement.textContent = `Camera access failed: ${error.message}`;
+                errorElement.style.display = 'block';
             }
             
-            // Start exercise simulation
-            this.startExerciseSimulation();
-            
-            console.log('Exercise analysis started');
+            // Keep placeholder visible
+            if (placeholder) {
+                placeholder.innerHTML = `
+                    <div class="camera-icon">❌</div>
+                    <p>Camera access denied or unavailable</p>
+                `;
+            }
         }
+    }
+
+    stopExerciseAnalysis() {
+        // Stop camera stream
+        const videoElement = document.getElementById('exerciseVideoElement');
+        if (videoElement && videoElement.srcObject) {
+            const tracks = videoElement.srcObject.getTracks();
+            tracks.forEach(track => track.stop());
+            videoElement.srcObject = null;
+            videoElement.style.display = 'none';
+        }
+
+        // Show placeholder again
+        const placeholder = document.getElementById('exerciseCameraPlaceholder');
+        if (placeholder) {
+            placeholder.style.display = 'flex';
+            placeholder.innerHTML = `
+                <div class="camera-icon">📹</div>
+                <p>Camera feed will appear here</p>
+            `;
+        }
+
+        // Hide error message
+        const errorElement = document.getElementById('exerciseCameraError');
+        if (errorElement) {
+            errorElement.style.display = 'none';
+        }
+
+        // Clear exercise interval
+        if (this.exerciseInterval) {
+            clearInterval(this.exerciseInterval);
+            this.exerciseInterval = null;
+        }
+
+        // Reset button
+        if (this.startExerciseBtn) {
+            this.startExerciseBtn.textContent = 'Start Exercise Analysis';
+            this.startExerciseBtn.classList.remove('stop-btn');
+            this.startExerciseBtn.classList.add('start-btn');
+        }
+
+        // Hide analysis section
+        if (this.exerciseAnalysis) {
+            this.exerciseAnalysis.classList.add('hidden');
+        }
+
+        this.exerciseActive = false;
+        console.log('Exercise analysis stopped');
     }
 
     startExerciseSimulation() {

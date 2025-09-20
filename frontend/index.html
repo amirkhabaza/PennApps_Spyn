@@ -13,7 +13,6 @@
         <header class="dashboard-header">
             <div class="logo">
                 <h1>Spyn</h1>
-                <span class="tagline">Your Posture Companion</span>
             </div>
             <div class="header-actions">
                 <button id="shortcutsBtn" class="help-btn" title="Keyboard Shortcuts">
@@ -40,6 +39,7 @@
             <div class="tab-content">
                 <!-- Posture Tab -->
                 <div id="posture-tab" class="tab-pane active">
+                    <!-- Hero Section - Only in posture tab -->
                     <div class="hero-section">
                         <div class="hero-content">
                             <h2>Ready to Improve Your Posture?</h2>
@@ -86,8 +86,10 @@
                             <h2>Exercise Form Analysis</h2>
                             <p>Use your camera to analyze and improve your exercise form in real-time</p>
                             <button id="startExerciseBtn" class="start-btn">
-                                <span class="btn-icon">📹</span>
                                 Start Exercise Analysis
+                            </button>
+                            <button id="stopExerciseBtn" class="stop-btn" style="display: none; margin-left: 1rem;">
+                                Stop Analysis
                             </button>
                         </div>
                     </div>
@@ -97,22 +99,18 @@
                             <h3>Available Exercises</h3>
                             <div class="exercise-grid">
                                 <div class="exercise-card">
-                                    <div class="exercise-icon">🏋️</div>
                                     <h4>Deadlift</h4>
                                     <p>Analyze back posture and hip hinge movement</p>
                                 </div>
                                 <div class="exercise-card">
-                                    <div class="exercise-icon">💪</div>
                                     <h4>Push-ups</h4>
                                     <p>Monitor body alignment and core stability</p>
                                 </div>
                                 <div class="exercise-card">
-                                    <div class="exercise-icon">🏃</div>
                                     <h4>Squats</h4>
                                     <p>Track knee alignment and depth</p>
                                 </div>
                                 <div class="exercise-card">
-                                    <div class="exercise-icon">🧘</div>
                                     <h4>Planks</h4>
                                     <p>Ensure straight line from head to heels</p>
                                 </div>
@@ -142,10 +140,12 @@
                             
                             <div class="camera-container">
                                 <h4>Live Camera Feed</h4>
-                                <div class="camera-placeholder">
+                                <video id="exerciseVideoElement" autoplay muted playsinline style="display: none;"></video>
+                                <div id="exerciseCameraPlaceholder" class="camera-placeholder">
                                     <div class="camera-icon">📹</div>
                                     <p>Camera feed will appear here</p>
                                 </div>
+                                <div id="exerciseCameraError" class="error-message" style="display: none;"></div>
                             </div>
                         </div>
                     </div>
