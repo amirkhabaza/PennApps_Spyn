@@ -16,7 +16,7 @@ from api import analyze_with_llm, SessionAggregator  # <-- aggregator for websit
 # -----------------------------
 FRAME_WIDTH  = 640
 FRAME_HEIGHT = 480
-LLM_COOLDOWN = 0.1  # seconds between Cerebras calls for same (category, action)
+LLM_COOLDOWN = 3  # seconds between Cerebras calls for same (category, action)
 
 CONTROL_WIN = "AR PT Coach — Controls (focus here)"
 
@@ -139,7 +139,7 @@ def main():
                     last_query_key = key_now
 
                     # 1) aggregator.append ONE event + compute display metrics
-                    rt = agg.update(status, feedback, score, now)
+                    rt = agg.update(status, feedback, score, now, metrics)
 
                     # 2) concise console print JUST ONCE per LLM call (fixes duplicates)
                     print("==================================================")
@@ -179,8 +179,10 @@ def main():
                     print("No person detected.")
                     last_no_person_print = now
                 info_lines.append("No person detected.")
-                # Still keep website metrics ticking (no event)
-                agg.current_metrics(now)
+
+                # ✅ Let aggregator handle the no_person alert
+                agg.set_no_person()
+                rt = agg.current_metrics(now)
 
             # Show tiny control window so waitKey works
             draw_control_overlay(category, action, info_lines)
@@ -218,9 +220,6 @@ def main():
                     time.sleep(3)
                 else:
                     print("→ Reset cancelled. Continuing session...")
-
-
-
 
     finally:
         cap.release()

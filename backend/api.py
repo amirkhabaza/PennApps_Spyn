@@ -117,6 +117,12 @@ class SessionAggregator:
     - session_duration_sec
     - good_posture_pct (time-weighted % with score >= GOOD_CUTOFF)
     - corrections (via Gemini, throttled)
+
+    Alerts:
+      - Keep a *single canonical* `alerts` list (self.current_alerts) that is written
+        to metrics.json. Do not duplicate alerts into last_event AND top-level `alerts`.
+      - Provide set_no_person() for the "no person detected" case.
+      - Deduplicate alerts and apply a short cooldown to avoid spammy repeats.
     """
 
     def __init__(
@@ -125,7 +131,7 @@ class SessionAggregator:
         metrics_paths: Optional[List[str]] = None,
         gemini_min_interval_sec: float = 10.0,
     ):
-        # 🔹 Use absolute path to guarantee metrics.json is always in backend folder
+        # Use absolute path to guarantee metrics.json is always in backend folder
         BASE_DIR = os.path.dirname(os.path.abspath(__file__))
         self.good_cutoff = good_cutoff
         self.metrics_paths = metrics_paths or [
@@ -137,6 +143,7 @@ class SessionAggregator:
         self.reset()
 
     def reset(self):
+        """Reset aggregator internal state for a fresh session."""
         self.session_start: Optional[float] = None
         self.last_event_time: Optional[float] = None
         self.last_score: Optional[int] = None
@@ -148,11 +155,91 @@ class SessionAggregator:
         self.events: List[Dict] = []  # keep recent event summaries
         self._cached_corrections: List[str] = []
         self._last_gemini_ts: float = 0.0
-        
-        # Correction counter - counts feedback entries only when score < 85
+
+        # Correction counter - counts feedback entries only when score < good_cutoff
         self.correction_count: int = 0
 
-    def update(self, status: str, feedback: List[str], score: int, now: Optional[float] = None) -> Dict:
+        # Alert deduplication + cooldown
+        self.current_alerts: List[Dict] = []      # canonical single alert list for UI
+        self._recent_alerts: Dict[str, float] = {}  # map alert_key -> timestamp
+        self._alert_cooldown_sec: float = 30.0
+
+    # --------------------
+    # Alert helpers
+    # --------------------
+    def _normalize_alerts(self, alerts: Optional[List[Dict]]) -> List[Dict]:
+        """
+        Deduplicate and normalize alerts list.
+        Keying by (type, sorted(parts)). Returns canonical list.
+        """
+        if not alerts:
+            return []
+        seen = set()
+        out: List[Dict] = []
+        for a in alerts:
+            if not isinstance(a, dict):
+                continue
+            t = a.get("type")
+            parts = a.get("parts")
+            key = (t, tuple(sorted(parts)) if isinstance(parts, list) else None)
+            if key in seen:
+                continue
+            seen.add(key)
+            entry = {"type": t}
+            if key[1] is not None:
+                entry["parts"] = list(key[1])
+            out.append(entry)
+        return out
+
+    def _should_show_alert(self, alert: Dict, now: float) -> bool:
+        """
+        Simple cooldown check to avoid repeating identical alerts too frequently.
+        Returns True if the alert should be shown now (and records it).
+        """
+        # Construct stable key
+        parts = alert.get("parts") or []
+        try:
+            key_parts = ",".join(sorted(map(str, parts)))
+        except Exception:
+            key_parts = str(parts)
+        alert_key = f"{alert.get('type', 'unknown')}:{key_parts}"
+
+        # Purge old keys
+        cutoff = now - self._alert_cooldown_sec
+        self._recent_alerts = {k: v for k, v in self._recent_alerts.items() if v > cutoff}
+
+        if alert_key in self._recent_alerts:
+            return False
+
+        # record and allow
+        self._recent_alerts[alert_key] = now
+        return True
+
+    def set_no_person(self):
+        """
+        Public helper: set a single 'no_person' alert for the UI when no landmarks are detected.
+        Call this from fast_demo/camera loop when you detect no person.
+        """
+        self.current_alerts = [{"type": "no_person"}]
+
+    # --------------------
+    # Main update logic
+    # --------------------
+    def update(
+        self,
+        status: str,
+        feedback: List[str],
+        score: int,
+        now: Optional[float] = None,
+        metrics: Optional[Dict] = None,
+        alerts: Optional[List[Dict]] = None,
+    ) -> Dict:
+        """
+        Update aggregator with a new analyzer result.
+        - metrics: optional dict returned by analyzer (may contain "missing_parts" and/or "alerts").
+        - alerts: explicit alerts list to use (overrides metrics["alerts"] if provided).
+        Returns a dict suitable for display and persisted to metrics.json.
+        """
         now = now or time.time()
 
         # Start session on first result
@@ -167,27 +254,67 @@ class SessionAggregator:
             if self.last_score >= self.good_cutoff:
                 self.good_time += dt
 
-        # Count corrections only when score < 85
-        if int(score) < 85 and feedback:
+        # Count corrections only when score < good_cutoff
+        if int(score) < self.good_cutoff and feedback:
             self.correction_count += len(feedback)
 
-        # Record current event and set state for next integration step
+        # Add missing parts warning to feedback if needed (keeps compatibility with prior console output)
+        final_feedback = list(feedback or [])
+        if metrics and "missing_parts" in metrics and metrics["missing_parts"]:
+            warning_msg = f"⚠️ Missing from camera: {', '.join(metrics['missing_parts'])}"
+            # Only add if not already present
+            if not any(f.startswith("⚠️") for f in final_feedback):
+                final_feedback.insert(0, warning_msg)
+
+        # Build event summary (do NOT duplicate alerts into last_event to avoid frontend double-read)
         evt = {
             "t": now,
             "score": int(score),
             "status": str(status),
-            "feedback": list(feedback or []),
+            "feedback": final_feedback,
         }
+
+        # Determine alerts to use: explicit alerts param > metrics["alerts"] > derived missing_parts
+        alerts_to_use: List[Dict] = []
+        if alerts:
+            alerts_to_use = list(alerts)
+        elif metrics and isinstance(metrics, dict) and metrics.get("alerts"):
+            alerts_to_use = list(metrics.get("alerts") or [])
+        # if missing_parts present but no explicit alerts, synthesize missing_parts alert
+        if metrics and isinstance(metrics, dict) and metrics.get("missing_parts"):
+            mp = metrics.get("missing_parts")
+            if mp:
+                alerts_to_use.append({"type": "missing_parts", "parts": list(mp)})
+
+        # Normalize and apply cooldown dedupe
+        normalized = self._normalize_alerts(alerts_to_use)
+        filtered = []
+        for a in normalized:
+            # allow all alerts through normalization; apply cooldown filter to avoid spam
+            if self._should_show_alert(a, now):
+                filtered.append(a)
+
+        # Update canonical current_alerts (single place for the frontend)
+        # If no filtered alerts (e.g., deduped by cooldown), keep previous current_alerts if it is still recent.
+        # Here we replace with filtered to reflect current detection; fast_demo can call set_no_person()
+        # for "no person" case when there are no landmarks.
+        self.current_alerts = filtered
+
+        # Append event summary (we intentionally DO NOT include alerts/missing_parts fields inside evt
+        # to avoid duplication in metrics.json; frontend should read `alerts` top-level instead).
         self.events.append(evt)
-        if len(self.events) > 240:  # keep ~12 minutes if 3s/call
+        if len(self.events) > 240:  # keep ~12 minutes if frequent calls
             self.events = self.events[-240:]
 
         self.last_event_time = now
         self.last_score = int(score)
 
-        # Compute *display* metrics including the live segment since last event
+        # Compute display metrics including live segment since last event
         return self.current_metrics(now)
 
+    # --------------------
+    # Live totals and Gemini summary
+    # --------------------
     def _live_totals(self, now: Optional[float] = None):
         now = now or time.time()
         if self.session_start is None:
@@ -228,6 +355,10 @@ class SessionAggregator:
         return self._cached_corrections
 
     def current_metrics(self, now: Optional[float] = None) -> Dict:
+        """
+        Compute display metrics and persist to JSON. Always include a single canonical 'alerts'
+        field (possibly empty list). Do NOT duplicate alerts into last_event and the root.
+        """
         total, score_sum, good = self._live_totals(now)
 
         duration = float(total)
@@ -238,7 +369,6 @@ class SessionAggregator:
             overall = int(self.last_score or 0)
             good_pct = 100.0 if (self.last_score and self.last_score >= self.good_cutoff) else 0.0
 
-        # Use correction count instead of Gemini corrections
         corrections = self.correction_count
 
         out = {
@@ -246,7 +376,10 @@ class SessionAggregator:
             "session_duration_sec": int(round(duration)),
             "good_posture_pct": round(good_pct, 1),
             "corrections": corrections,
+            # last_event remains for debugging/console usage but purposely DOES NOT contain 'alerts'
             "last_event": self.events[-1] if self.events else None,
+            # canonical alerts list for the frontend to read
+            "alerts": list(self.current_alerts or []),
         }
 
         # Persist to JSON for the website to poll
