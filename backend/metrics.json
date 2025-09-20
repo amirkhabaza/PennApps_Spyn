@@ -1,21 +1,19 @@
 {
-  "overall_score": 86,
-  "session_duration_sec": 681,
-  "good_posture_pct": 66.6,
+  "overall_score": 85,
+  "session_duration_sec": 48,
+  "good_posture_pct": 62.4,
   "corrections": [
-    "Upper-body posture looks good.",
     "Lift your gaze slightly and lengthen the back of your neck.",
     "Gently tuck the chin; keep the nose close to shoulder line.",
-    "Level your head (avoid mild tilt)."
+    "Severe head drop—raise your head and extend the neck.",
+    "Lift head slightly; avoid tucking chin too much."
   ],
   "last_event": {
-    "t": 1758389234.0242538,
-    "score": 80,
-    "status": "improvable",
+    "t": 1758391450.977144,
+    "score": 88,
+    "status": "correct",
     "feedback": [
-      "Lift your gaze slightly and lengthen the back of your neck.",
-      "Severe head drop—raise your head and extend the neck.",
-      "Maintain gap between ears and shoulders."
+      "Lift head slightly; avoid tucking chin too much."
     ]
   }
 }

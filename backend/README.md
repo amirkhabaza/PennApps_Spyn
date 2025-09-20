@@ -33,9 +33,10 @@ pip install -r requirements.txt
 
 # Run
 1.
+cd backend
 uvicorn server:app --reload --host 127.0.0.1 --port 8000
 2. Use a new terminal
-python fast_demo.py
+python backend/fast_demo.py
 
 
 AR_PT_Coach_AI_Package/

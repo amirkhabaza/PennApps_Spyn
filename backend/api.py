@@ -125,8 +125,13 @@ class SessionAggregator:
         metrics_paths: Optional[List[str]] = None,
         gemini_min_interval_sec: float = 10.0,
     ):
+        # 🔹 Use absolute path to guarantee metrics.json is always in backend folder
+        BASE_DIR = os.path.dirname(os.path.abspath(__file__))
         self.good_cutoff = good_cutoff
-        self.metrics_paths = metrics_paths or ["./metrics.json", "/tmp/ar_pt_metrics.json"]
+        self.metrics_paths = metrics_paths or [
+            os.path.join(BASE_DIR, "metrics.json"),
+            "/tmp/ar_pt_metrics.json",
+        ]
         self.gemini_min_interval_sec = gemini_min_interval_sec
 
         self.reset()
@@ -245,5 +250,7 @@ class SessionAggregator:
             try:
                 with open(path, "w", encoding="utf-8") as f:
                     json.dump(metrics, f, ensure_ascii=False, indent=2)
-            except Exception:
-                pass
+                # Debug: confirm write path
+                # print(f"[SessionAggregator] Updated metrics at {path}")
+            except Exception as e:
+                print(f"[SessionAggregator] Failed to write {path}: {e}")
