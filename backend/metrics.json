@@ -1,14 +1,14 @@
 {
-  "overall_score": 78,
-  "session_duration_sec": 19,
-  "good_posture_pct": 0.0,
-  "corrections": 110,
+  "overall_score": 91,
+  "session_duration_sec": 7,
+  "good_posture_pct": 59.0,
+  "corrections": 1,
   "last_event": {
-    "t": 1758395020.3040771,
-    "score": 80,
-    "status": "improvable",
+    "t": 1758398476.014577,
+    "score": 98,
+    "status": "correct",
     "feedback": [
-      "Aim for ~90° at knees (not too shallow/deep)."
+      "Keep space between chin and shoulders."
     ]
   }
 }
