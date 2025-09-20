@@ -152,6 +152,9 @@ class Spyn {
             this.postureReport.classList.add('hidden');
         }
         
+        // Initialize dashboard variables
+        this.initializeDashboardVariables();
+        
         // Start timer
         this.startTimer();
         
@@ -262,6 +265,7 @@ class Spyn {
             const response = await fetch('http://localhost:8000/metrics');
             if (response.ok) {
                 const metrics = await response.json();
+                console.log('Dashboard: Fetched metrics:', metrics);
                 
                 // Check the score in last_event
                 if (metrics.last_event && metrics.last_event.score !== undefined) {
@@ -277,6 +281,9 @@ class Spyn {
                     // Always update overlay with current score (even if status didn't change)
                     this.updateOverlayStatus(score);
                     
+                    // Update dashboard variables in real-time
+                    this.updateDashboardVariables(metrics);
+                    
                     // Update posture data for tracking
                     this.postureData.push({
                         timestamp: Date.now(),
@@ -284,7 +291,11 @@ class Spyn {
                         score: score,
                         percentage: this.calculateGoodPosturePercentage()
                     });
+                } else {
+                    console.log('Dashboard: No last_event or score in metrics');
                 }
+            } else {
+                console.log('Dashboard: Failed to fetch metrics, status:', response.status);
             }
         } catch (error) {
             console.error('Error checking metrics:', error);
@@ -293,11 +304,71 @@ class Spyn {
 
     // New method: Update overlay status based on current posture
     updateOverlayStatus(currentScore) {
-        // Send status update to overlay window
-        ipcRenderer.invoke('detection-status', {
+        const statusData = {
             isGood: this.isGoodPosture,
             score: currentScore || (this.postureData.length > 0 ? this.postureData[this.postureData.length - 1].score : 0)
-        });
+        };
+        console.log('Dashboard: Sending status update:', statusData);
+        // Send status update to overlay window
+        ipcRenderer.invoke('detection-status', statusData);
+    }
+
+    // New method: Initialize dashboard variables
+    initializeDashboardVariables() {
+        try {
+            // Initialize with default values
+            if (this.overallScore) {
+                this.overallScore.textContent = '0%';
+            }
+            
+            if (this.goodPostureTime) {
+                this.goodPostureTime.textContent = '0%';
+            }
+            
+            if (this.corrections) {
+                this.corrections.textContent = '0';
+            }
+            
+            if (this.sessionDuration) {
+                this.sessionDuration.textContent = '00:00';
+            }
+            
+            console.log('Dashboard: Variables initialized');
+        } catch (error) {
+            console.error('Error initializing dashboard variables:', error);
+        }
+    }
+
+    // New method: Update dashboard variables in real-time
+    updateDashboardVariables(metrics) {
+        try {
+            // Update overall score
+            if (this.overallScore && metrics.overall_score !== undefined) {
+                this.overallScore.textContent = `${metrics.overall_score}%`;
+            }
+            
+            // Update good posture percentage
+            if (this.goodPostureTime && metrics.good_posture_pct !== undefined) {
+                this.goodPostureTime.textContent = `${metrics.good_posture_pct}%`;
+            }
+            
+            // Update corrections count
+            if (this.corrections && metrics.corrections !== undefined) {
+                this.corrections.textContent = metrics.corrections.toString();
+            }
+            
+            // Update session duration (calculate from current time)
+            if (this.sessionDuration && this.sessionStartTime) {
+                const sessionDuration = Math.floor((Date.now() - this.sessionStartTime) / 1000);
+                const minutes = Math.floor(sessionDuration / 60);
+                const seconds = sessionDuration % 60;
+                this.sessionDuration.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }
+            
+            console.log('Dashboard: Variables updated with real-time metrics');
+        } catch (error) {
+            console.error('Error updating dashboard variables:', error);
+        }
     }
 
     // New method: Start fast_demo process
@@ -994,10 +1065,17 @@ class SpynOverlay {
         ipcRenderer.on('detection-status', (event, status) => {
             this.handleDetectionStatus(status);
         });
+        
+        // Listen for percentage updates from main process
+        ipcRenderer.on('update-percentage', (event, data) => {
+            console.log('Overlay: Received percentage update:', data);
+            this.updatePosturePercentage(data.score);
+        });
     }
 
     // New method: Handle detection status updates
     handleDetectionStatus(status) {
+        console.log('Overlay: Received detection status:', status);
         if (status && typeof status.isGood !== 'undefined') {
             this.isGoodPosture = status.isGood;
             this.updatePostureStatus();
@@ -1169,6 +1247,9 @@ class SpynOverlay {
         const percentage = score !== undefined ? score : this.calculateGoodPosturePercentage();
         if (this.posturePercentage) {
             this.posturePercentage.textContent = `${percentage}%`;
+            console.log(`Overlay: Percentage updated to ${percentage}%`);
+        } else {
+            console.log('Overlay: posturePercentage element not found');
         }
     }
 
