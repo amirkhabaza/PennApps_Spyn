@@ -26,15 +26,13 @@ CEREBRAS_MODEL = "llama3.1-8b"  # small, fast, instruction-tuned model
 # ================================================================
 CATEGORIES = {
     "POSTURE": ["sitting", "standing", "desk_posture"],   # Everyday posture
-    "EXERCISE": ["squat", "pushup", "bicep_curl"],        # Fitness
-    "SPORT": ["jumping_jack", "throw"]                    # Simple sport heuristics
+    "EXERCISE": ["squat", "pushup", "bicep_curl"]       # Fitness
 }
 
 # For UI display
 DISPLAY_NAMES = {
     "POSTURE": "POSTURE",
     "EXERCISE": "EXERCISE",
-    "SPORT": "SPORT",
 }
 
 # MediaPipe Pose landmark names
@@ -805,62 +803,6 @@ def _analyze_exercise(category: str, action: str, kps):
     if action == "pushup":     return _analyze_exercise_pushup(kps)
     if action == "bicep_curl": return _analyze_exercise_bicep(kps)
     return "unknown", ["Unsupported exercise."], 0, {}
-
-
-# ================================================================
-# Sport analyzers (kept from your logic)
-# ================================================================
-def _analyze_sport_jj(kps):
-    """Jumping jack: wrists above head & feet apart."""
-    nose_y = _get_xy(kps, "NOSE")[1]
-    lw_y, rw_y = _get_xy(kps, "LEFT_WRIST")[1], _get_xy(kps, "RIGHT_WRIST")[1]
-    la, ra = _get_xy(kps, "LEFT_ANKLE"), _get_xy(kps, "RIGHT_ANKLE")
-    feet_dist = _dist(la, ra)
-
-    score, feedback = 100, []
-    if not (lw_y < nose_y and rw_y < nose_y):
-        feedback.append("Raise both hands above head.")
-        score -= 40
-    if feet_dist < 0.15:
-        feedback.append("Widen your stance.")
-        score -= 20
-
-    return (
-        "correct" if score >= 85 else "improvable",
-        feedback or ["Good jumping jack position."],
-        max(0, min(100, score)),
-        {"feet_distance": None if np.isnan(feet_dist) else round(float(feet_dist), 3)}
-    )
-
-
-def _analyze_sport_throw(kps):
-    """Throw: check elbow flexion + shoulder level on right arm."""
-    elb = _elbow_angle(kps, "RIGHT")
-    slope = _shoulder_level_deg(kps)
-
-    score, feedback = 100, []
-    if np.isnan(elb) or elb < 70:
-        feedback.append("Cock your throwing arm (increase elbow angle).")
-        score -= 30
-    if np.isnan(slope) or slope > 20:
-        feedback.append("Square shoulders toward target.")
-        score -= 20
-
-    return (
-        "correct" if score >= 85 else "improvable",
-        feedback or ["Nice throwing prep."],
-        max(0, min(100, score)),
-        {
-            "elbow_angle": None if np.isnan(elb) else round(float(elb), 1),
-            "shoulder_slope": None if np.isnan(slope) else round(float(slope), 1)
-        }
-    )
-
-
-def _analyze_sport(category: str, action: str, kps):
-    if action == "jumping_jack": return _analyze_sport_jj(kps)
-    if action == "throw":        return _analyze_sport_throw(kps)
-    return "unknown", ["Unsupported sport."], 0, {}
 
 
 # ================================================================

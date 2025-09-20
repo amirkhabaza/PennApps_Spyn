@@ -50,7 +50,7 @@ def draw_control_overlay(category, action, info_lines=None):
         cv2.putText(img, text, (10, y), cv2.FONT_HERSHEY_SIMPLEX, 0.48, (0, 255, 0), 1, cv2.LINE_AA)
 
     put(24,  f"Mode: {DISPLAY_NAMES.get(category, category)}  |  Action: {action}")
-    put(48,  "1=POSTURE   2=EXERCISE   3=SPORT")
+    put(48,  "1=POSTURE   2=EXERCISE")
     put(72,  "j=prev action   k=next action   q=quit")
     put(96,  "r=reset session") 
     if info_lines:
@@ -67,7 +67,7 @@ def draw_control_overlay(category, action, info_lines=None):
 def main():
     print("=== AR PT Coach (Console Mode, Manual Only) ===")
     print("Focus the small window titled:", CONTROL_WIN)
-    print("Keys: 1=POSTURE | 2=EXERCISE | 3=SPORT | j=prev | k=next | q=quit")
+    print("Keys: 1=POSTURE | 2=EXERCISE | j=prev | k=next | q=quit")
 
     category = "POSTURE"
     action_idx = 0
@@ -196,11 +196,6 @@ def main():
                 agg.reset()  # start a fresh session when switching mode (optional)
             elif key == ord('2'):
                 category, action_idx = "EXERCISE", 0
-                print(f"→ Switched to {DISPLAY_NAMES[category]}: {CATEGORIES[category][action_idx]}")
-                last_query_key = None
-                agg.reset()
-            elif key == ord('3'):
-                category, action_idx = "SPORT", 0
                 print(f"→ Switched to {DISPLAY_NAMES[category]}: {CATEGORIES[category][action_idx]}")
                 last_query_key = None
                 agg.reset()
