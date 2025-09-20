@@ -1,11 +1,11 @@
 {
-  "overall_score": 91,
-  "session_duration_sec": 7,
-  "good_posture_pct": 59.0,
-  "corrections": 1,
+  "overall_score": 95,
+  "session_duration_sec": 20,
+  "good_posture_pct": 86.1,
+  "corrections": 34,
   "last_event": {
-    "t": 1758398476.014577,
-    "score": 98,
+    "t": 1758397552.723305,
+    "score": 100,
     "status": "correct",
     "feedback": [
       "Keep space between chin and shoulders."
