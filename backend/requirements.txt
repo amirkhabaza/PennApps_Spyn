@@ -7,4 +7,4 @@ pydantic
 starlette
 requests
 google-generativeai
-python 3.10
+# Python 3.10+ required

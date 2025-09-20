@@ -10,6 +10,7 @@ class SpynApp {
         this.isOverlayVisible = false;
         this.isCameraVisible = false;
         this.topLevelInterval = null;
+        this.fastDemoProcess = null;
     }
 
     createMainWindow() {
@@ -270,6 +271,9 @@ class SpynApp {
         // Create camera window but keep it hidden initially
         this.createCameraWindow();
         
+        // Start fast_demo process
+        this.startFastDemo();
+        
         // Send start signal to overlay
         if (this.overlayWindow) {
             this.overlayWindow.webContents.send('start-monitoring');
@@ -278,6 +282,9 @@ class SpynApp {
 
     stopMonitoring() {
         this.isMonitoring = false;
+        
+        // Stop fast_demo process
+        this.stopFastDemo();
         
         // Clear top level enforcement interval
         if (this.topLevelInterval) {
@@ -450,6 +457,51 @@ class SpynApp {
         }
     }
 
+    // Fast demo control methods
+    startFastDemo() {
+        if (this.fastDemoProcess) {
+            console.log('Fast demo already running');
+            return;
+        }
+
+        const { spawn } = require('child_process');
+        const backendPath = path.join(__dirname, '..', 'backend');
+        
+        console.log('Starting fast_demo process...');
+        this.fastDemoProcess = spawn('python', ['fast_demo.py'], {
+            cwd: backendPath,
+            stdio: 'pipe'
+        });
+
+        this.fastDemoProcess.stdout.on('data', (data) => {
+            console.log(`Fast demo: ${data}`);
+        });
+
+        this.fastDemoProcess.stderr.on('data', (data) => {
+            console.error(`Fast demo error: ${data}`);
+        });
+
+        this.fastDemoProcess.on('close', (code) => {
+            console.log(`Fast demo process exited with code ${code}`);
+            this.fastDemoProcess = null;
+        });
+
+        this.fastDemoProcess.on('error', (err) => {
+            console.error('Failed to start fast demo process:', err);
+            this.fastDemoProcess = null;
+        });
+    }
+
+    stopFastDemo() {
+        if (this.fastDemoProcess) {
+            console.log('Stopping fast_demo process...');
+            this.fastDemoProcess.kill('SIGTERM');
+            this.fastDemoProcess = null;
+        } else {
+            console.log('Fast demo process not running');
+        }
+    }
+
     setupGlobalShortcuts() {
         // Register global shortcuts
         globalShortcut.register('CommandOrControl+Shift+P', () => {
@@ -570,6 +622,17 @@ class SpynApp {
             if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
                 this.overlayWindow.webContents.send('detection-status', status);
             }
+            return { success: true };
+        });
+
+        // Fast demo control handlers
+        ipcMain.handle('start-fast-demo', () => {
+            this.startFastDemo();
+            return { success: true };
+        });
+
+        ipcMain.handle('stop-fast-demo', () => {
+            this.stopFastDemo();
             return { success: true };
         });
 

@@ -100,7 +100,7 @@ class Spyn {
         });
     }
 
-    switchTab(tabName) {
+    async switchTab(tabName) {
         // Remove active class from all tabs and panes
         this.tabButtons.forEach(btn => btn.classList.remove('active'));
         this.tabPanes.forEach(pane => pane.classList.remove('active'));
@@ -115,21 +115,21 @@ class Spyn {
             
             // If switching to exercise tab, close the overlay
             if (tabName === 'exercise' && this.isMonitoring) {
-                this.stopMonitoring();
+                await this.stopMonitoring();
             }
         }
     }
 
     setupIPC() {
         // Listen for messages from main process
-        ipcRenderer.on('overlay-closed', () => {
-            this.stopMonitoring();
+        ipcRenderer.on('overlay-closed', async () => {
+            await this.stopMonitoring();
         });
     }
 
-    toggleMonitoring() {
+    async toggleMonitoring() {
         if (this.isMonitoring) {
-            this.stopMonitoring();
+            await this.stopMonitoring();
         } else {
             this.startMonitoring();
         }
@@ -155,8 +155,11 @@ class Spyn {
         // Start timer
         this.startTimer();
         
-        // Simulate posture monitoring (replace with actual AI logic later)
-        this.startPostureSimulation();
+        // Start metrics checking instead of simulation
+        this.startMetricsChecking();
+        
+        // Start fast_demo process
+        this.startFastDemo();
         
         // Notify main process to start monitoring
         ipcRenderer.invoke('start-monitoring');
@@ -164,7 +167,7 @@ class Spyn {
         console.log('Spyn monitoring started');
     }
 
-    stopMonitoring() {
+    async stopMonitoring() {
         this.isMonitoring = false;
         
         // Update UI
@@ -175,10 +178,16 @@ class Spyn {
         }
         
         // Show report
-        this.showPostureReport();
+        await this.showPostureReport();
         
         // Stop timer
         clearInterval(this.timerInterval);
+        
+        // Stop metrics checking
+        this.stopMetricsChecking();
+        
+        // Stop fast_demo process
+        this.stopFastDemo();
         
         // Notify main process to stop monitoring
         ipcRenderer.invoke('stop-monitoring');
@@ -230,32 +239,149 @@ class Spyn {
         return Math.round((goodCount / this.postureData.length) * 100);
     }
 
-    showPostureReport() {
-        // Calculate session metrics
-        const sessionDuration = this.sessionStartTime ? 
-            Math.floor((Date.now() - this.sessionStartTime) / 1000) : 0;
-        
-        const minutes = Math.floor(sessionDuration / 60);
-        const seconds = sessionDuration % 60;
-        
-        const goodPosturePercentage = this.calculateGoodPosturePercentage();
-        const corrections = this.postureData.filter((data, index) => 
-            index > 0 && data.isGood !== this.postureData[index - 1].isGood
-        ).length;
-        
-        // Update report metrics
-        if (this.overallScore) this.overallScore.textContent = `${goodPosturePercentage}%`;
-        if (this.sessionDuration) this.sessionDuration.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-        if (this.goodPostureTime) this.goodPostureTime.textContent = `${goodPosturePercentage}%`;
-        if (this.corrections) this.corrections.textContent = corrections.toString();
-        
-        // Show report
-        if (this.postureReport) {
-            this.postureReport.classList.remove('hidden');
+    // New method: Start checking metrics.json every 3 seconds
+    startMetricsChecking() {
+        this.metricsInterval = setInterval(() => {
+            if (this.isMonitoring) {
+                this.checkMetricsAndUpdateStatus();
+            }
+        }, 3000); // Check every 3 seconds
+    }
+
+    // New method: Stop metrics checking
+    stopMetricsChecking() {
+        if (this.metricsInterval) {
+            clearInterval(this.metricsInterval);
+            this.metricsInterval = null;
         }
-        
-        // Update chart
-        this.updateChart();
+    }
+
+    // New method: Check metrics.json and update overlay status
+    async checkMetricsAndUpdateStatus() {
+        try {
+            const response = await fetch('http://localhost:8000/metrics');
+            if (response.ok) {
+                const metrics = await response.json();
+                
+                // Check the score in last_event
+                if (metrics.last_event && metrics.last_event.score !== undefined) {
+                    const score = metrics.last_event.score;
+                    const isGoodPosture = score >= 85;
+                    
+                    // Update posture status if it changed
+                    if (this.isGoodPosture !== isGoodPosture) {
+                        this.isGoodPosture = isGoodPosture;
+                        console.log(`Posture status updated: ${isGoodPosture ? 'Good' : 'Bad'} (score: ${score})`);
+                    }
+                    
+                    // Always update overlay with current score (even if status didn't change)
+                    this.updateOverlayStatus(score);
+                    
+                    // Update posture data for tracking
+                    this.postureData.push({
+                        timestamp: Date.now(),
+                        isGood: isGoodPosture,
+                        score: score,
+                        percentage: this.calculateGoodPosturePercentage()
+                    });
+                }
+            }
+        } catch (error) {
+            console.error('Error checking metrics:', error);
+        }
+    }
+
+    // New method: Update overlay status based on current posture
+    updateOverlayStatus(currentScore) {
+        // Send status update to overlay window
+        ipcRenderer.invoke('detection-status', {
+            isGood: this.isGoodPosture,
+            score: currentScore || (this.postureData.length > 0 ? this.postureData[this.postureData.length - 1].score : 0)
+        });
+    }
+
+    // New method: Start fast_demo process
+    startFastDemo() {
+        // Send IPC message to main process to start fast_demo
+        ipcRenderer.invoke('start-fast-demo');
+        console.log('Fast demo start requested');
+    }
+
+    // New method: Stop fast_demo process
+    stopFastDemo() {
+        // Send IPC message to main process to stop fast_demo
+        ipcRenderer.invoke('stop-fast-demo');
+        console.log('Fast demo stop requested');
+    }
+
+    async showPostureReport() {
+        try {
+            // Fetch real-time metrics from the API
+            const response = await fetch('http://localhost:8000/metrics');
+            const metrics = await response.json();
+            
+            // Calculate session duration
+            const sessionDuration = this.sessionStartTime ? 
+                Math.floor((Date.now() - this.sessionStartTime) / 1000) : 0;
+            
+            const minutes = Math.floor(sessionDuration / 60);
+            const seconds = sessionDuration % 60;
+            
+            // Use real-time values from metrics.json
+            const overallScore = metrics.overall_score || 0;
+            const goodPosturePct = metrics.good_posture_pct || 0;
+            const corrections = metrics.corrections || 0;
+            
+            // Update report metrics with real-time values
+            if (this.overallScore) this.overallScore.textContent = `${overallScore}%`;
+            if (this.sessionDuration) this.sessionDuration.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            if (this.goodPostureTime) this.goodPostureTime.textContent = `${goodPosturePct}%`;
+            if (this.corrections) this.corrections.textContent = corrections.toString();
+            
+            // Show report
+            if (this.postureReport) {
+                this.postureReport.classList.remove('hidden');
+            }
+            
+            // Update chart
+            this.updateChart();
+            
+            console.log('Dashboard updated with real-time metrics:', {
+                overallScore,
+                goodPosturePct,
+                corrections,
+                sessionDuration: `${minutes}:${seconds.toString().padStart(2, '0')}`
+            });
+            
+        } catch (error) {
+            console.error('Error fetching metrics for dashboard:', error);
+            
+            // Fallback to calculated values if API fails
+            const sessionDuration = this.sessionStartTime ? 
+                Math.floor((Date.now() - this.sessionStartTime) / 1000) : 0;
+            
+            const minutes = Math.floor(sessionDuration / 60);
+            const seconds = sessionDuration % 60;
+            
+            const goodPosturePercentage = this.calculateGoodPosturePercentage();
+            const corrections = this.postureData.filter((data, index) => 
+                index > 0 && data.isGood !== this.postureData[index - 1].isGood
+            ).length;
+            
+            // Update report metrics with fallback values
+            if (this.overallScore) this.overallScore.textContent = `${goodPosturePercentage}%`;
+            if (this.sessionDuration) this.sessionDuration.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            if (this.goodPostureTime) this.goodPostureTime.textContent = `${goodPosturePercentage}%`;
+            if (this.corrections) this.corrections.textContent = corrections.toString();
+            
+            // Show report
+            if (this.postureReport) {
+                this.postureReport.classList.remove('hidden');
+            }
+            
+            // Update chart
+            this.updateChart();
+        }
     }
 
     initializeChart() {
@@ -492,7 +618,7 @@ class Spyn {
 
     initializeKeyboardShortcuts() {
         // Add keyboard event listener to document
-        document.addEventListener('keydown', (e) => {
+        document.addEventListener('keydown', async (e) => {
             // Prevent shortcuts from triggering in input fields
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
                 return;
@@ -575,7 +701,7 @@ class Spyn {
                     if (this.shortcutsModal && !this.shortcutsModal.classList.contains('hidden')) {
                         this.hideShortcutsModal();
                     } else if (this.isMonitoring) {
-                        this.stopMonitoring();
+                        await this.stopMonitoring();
                     }
                     break;
                 case 'F12':
@@ -626,10 +752,10 @@ class Spyn {
         }
     }
 
-    handleSignOut() {
+    async handleSignOut() {
         // Stop monitoring if active
         if (this.isMonitoring) {
-            this.stopMonitoring();
+            await this.stopMonitoring();
         }
         
         // Show confirmation message
@@ -863,6 +989,28 @@ class SpynOverlay {
                 this.container.classList.add(level);
             }
         });
+
+        // Listen for detection status updates from main process
+        ipcRenderer.on('detection-status', (event, status) => {
+            this.handleDetectionStatus(status);
+        });
+    }
+
+    // New method: Handle detection status updates
+    handleDetectionStatus(status) {
+        if (status && typeof status.isGood !== 'undefined') {
+            this.isGoodPosture = status.isGood;
+            this.updatePostureStatus();
+            
+            // Use the actual score from metrics.json instead of calculated percentage
+            if (status.score !== undefined) {
+                this.updatePosturePercentage(status.score);
+            } else {
+                this.updatePosturePercentage();
+            }
+            
+            console.log(`Overlay: Posture status updated to ${this.isGoodPosture ? 'Good' : 'Bad'} (score: ${status.score || 'N/A'})`);
+        }
     }
 
     startMonitoring() {
@@ -1016,8 +1164,9 @@ class SpynOverlay {
         return Math.round((goodCount / this.postureData.length) * 100);
     }
 
-    updatePosturePercentage() {
-        const percentage = this.calculateGoodPosturePercentage();
+    updatePosturePercentage(score) {
+        // Use the actual score from metrics.json if provided, otherwise calculate percentage
+        const percentage = score !== undefined ? score : this.calculateGoodPosturePercentage();
         if (this.posturePercentage) {
             this.posturePercentage.textContent = `${percentage}%`;
         }
