@@ -1,21 +1,14 @@
 {
-  "overall_score": 83,
-  "session_duration_sec": 15,
-  "good_posture_pct": 52.6,
-  "corrections": [
-    "Lift head slightly; avoid tucking chin too much.",
-    "Strong forward head posture—stack head over shoulders.",
-    "Significant forward head—sit tall and pull chin straight back.",
-    "Upper-body posture looks good."
-  ],
+  "overall_score": 78,
+  "session_duration_sec": 19,
+  "good_posture_pct": 0.0,
+  "corrections": 110,
   "last_event": {
-    "t": 1758394819.3337321,
-    "score": 82,
+    "t": 1758395020.3040771,
+    "score": 80,
     "status": "improvable",
     "feedback": [
-      "Strong forward head posture—stack head over shoulders.",
-      "Severe head drop—raise your head and extend the neck.",
-      "Ears collapsing to shoulders—lift head and extend neck."
+      "Aim for ~90° at knees (not too shallow/deep)."
     ]
   }
 }
