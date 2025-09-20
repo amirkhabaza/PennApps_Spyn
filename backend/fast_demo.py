@@ -16,7 +16,7 @@ from api import analyze_with_llm, SessionAggregator  # <-- aggregator for websit
 # -----------------------------
 FRAME_WIDTH  = 640
 FRAME_HEIGHT = 480
-LLM_COOLDOWN = 3.0  # seconds between Cerebras calls for same (category, action)
+LLM_COOLDOWN = 0.1  # seconds between Cerebras calls for same (category, action)
 
 CONTROL_WIN = "AR PT Coach — Controls (focus here)"
 
