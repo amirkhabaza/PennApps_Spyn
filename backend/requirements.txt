@@ -7,4 +7,5 @@ pydantic
 starlette
 requests
 google-generativeai
+pymango
 # Python 3.10+ required

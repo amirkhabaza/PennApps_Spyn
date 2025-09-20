@@ -19,7 +19,6 @@
   "author": "Spyn Team",
   "license": "MIT",
   "devDependencies": {
-    "electron": "^28.0.0",
     "electron-builder": "^24.6.4"
   },
   "build": {
@@ -44,5 +43,8 @@
     "linux": {
       "target": "AppImage"
     }
+  },
+  "dependencies": {
+    "electron": "^38.1.2"
   }
 }
