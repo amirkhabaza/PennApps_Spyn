@@ -674,9 +674,18 @@ class SpynApp {
 
 
         ipcMain.handle('detection-status', (event, status) => {
+            console.log('Main process: Received detection status:', status);
             // Forward detection status to overlay window
             if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
                 this.overlayWindow.webContents.send('detection-status', status);
+                // Also send percentage update
+                this.overlayWindow.webContents.send('update-percentage', {
+                    score: status.score,
+                    isGood: status.isGood
+                });
+                console.log('Main process: Forwarded status to overlay');
+            } else {
+                console.log('Main process: Overlay window not available');
             }
             return { success: true };
         });
