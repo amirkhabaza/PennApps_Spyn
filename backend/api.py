@@ -148,6 +148,9 @@ class SessionAggregator:
         self.events: List[Dict] = []  # keep recent event summaries
         self._cached_corrections: List[str] = []
         self._last_gemini_ts: float = 0.0
+        
+        # Correction counter - counts feedback entries only when score < 85
+        self.correction_count: int = 0
 
     def update(self, status: str, feedback: List[str], score: int, now: Optional[float] = None) -> Dict:
         now = now or time.time()
@@ -163,6 +166,10 @@ class SessionAggregator:
             self.score_time_sum += self.last_score * dt
             if self.last_score >= self.good_cutoff:
                 self.good_time += dt
+
+        # Count corrections only when score < 85
+        if int(score) < 85 and feedback:
+            self.correction_count += len(feedback)
 
         # Record current event and set state for next integration step
         evt = {
@@ -231,7 +238,8 @@ class SessionAggregator:
             overall = int(self.last_score or 0)
             good_pct = 100.0 if (self.last_score and self.last_score >= self.good_cutoff) else 0.0
 
-        corrections = self._maybe_gemini(overall, duration, good_pct)
+        # Use correction count instead of Gemini corrections
+        corrections = self.correction_count
 
         out = {
             "overall_score": overall,

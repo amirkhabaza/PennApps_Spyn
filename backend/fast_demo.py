@@ -160,7 +160,7 @@ def main():
                     print(f"→ Overall Score: {rt.get('overall_score', 0)}% | "
                           f"Duration: {mm:02d}:{ss:02d} | "
                           f"Good Posture: {rt.get('good_posture_pct', 0.0)}% | "
-                          f"Corrections: {len(rt.get('corrections', []))}")
+                          f"Corrections: {rt.get('corrections', 0)}")
 
                     # Overlay summary
                     info_lines.append(f"Overall {rt.get('overall_score', 0)}% | "
