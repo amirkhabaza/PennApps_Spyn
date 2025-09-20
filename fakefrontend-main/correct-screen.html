@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Posture Correction</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #1a1a1a;
+            color: #ffffff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+
+        .correct-screen {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 400px;
+            height: 500px;
+            background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%);
+            border: 2px solid #00ff88;
+            border-radius: 15px;
+            box-shadow: 0 0 30px rgba(0, 255, 136, 0.3);
+            z-index: 10000;
+            display: none;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .correct-screen.show {
+            display: flex;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translate(-50%, -60%);
+            }
+            to {
+                opacity: 1;
+                transform: translate(-50%, -50%);
+            }
+        }
+
+        .correct-header {
+            background: linear-gradient(90deg, #00ff88 0%, #00cc6a 100%);
+            color: #000000;
+            padding: 15px 20px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 18px;
+            border-radius: 13px 13px 0 0;
+        }
+
+        .video-container {
+            flex: 1;
+            position: relative;
+            background: #000000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .video-feed {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 0;
+        }
+
+        .video-placeholder {
+            color: #666666;
+            font-size: 16px;
+            text-align: center;
+        }
+
+        .feedback-container {
+            padding: 20px;
+            background: #2d2d2d;
+            border-top: 1px solid #444444;
+        }
+
+        .feedback-title {
+            color: #00ff88;
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .feedback-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .feedback-item {
+            background: #1a1a1a;
+            border: 1px solid #444444;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 8px;
+            color: #ffffff;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        .feedback-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .score-display {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            color: #ff4444;
+            padding: 8px 12px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .close-hint {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: #00ff88;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="correct-screen" id="correctScreen">
+        <div class="correct-header">
+            🎯 Posture Correction Required
+        </div>
+        
+        <div class="video-container">
+            <video class="video-feed" id="videoFeed" autoplay muted playsinline></video>
+            <div class="video-placeholder" id="videoPlaceholder">
+                Camera not available
+            </div>
+            <div class="score-display" id="scoreDisplay">
+                Score: 0%
+            </div>
+        </div>
+        
+        <div class="feedback-container">
+            <div class="feedback-title">
+                💡 How to Fix Your Posture
+            </div>
+            <ul class="feedback-list" id="feedbackList">
+                <li class="feedback-item">Improve your posture to dismiss this screen</li>
+            </ul>
+        </div>
+        
+        <div class="close-hint">
+            Fix your posture to close this screen
+        </div>
+        
+        <div class="debug-info" id="debugInfo" style="position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.7); color: #00ff88; padding: 5px; font-size: 10px; border-radius: 3px; display: none;">
+            <div>Raw: <span id="rawScore">0</span></div>
+            <div>Filtered: <span id="filteredScore">0</span></div>
+            <div>Avg: <span id="avgScore">0</span></div>
+            <div>Low: <span id="lowCount">0</span> | Good: <span id="goodCount">0</span></div>
+        </div>
+    </div>
+
+    <script>
+        const { ipcRenderer } = require('electron');
+        
+        class CorrectScreen {
+            constructor() {
+                this.correctScreen = document.getElementById('correctScreen');
+                this.videoFeed = document.getElementById('videoFeed');
+                this.videoPlaceholder = document.getElementById('videoPlaceholder');
+                this.scoreDisplay = document.getElementById('scoreDisplay');
+                this.feedbackList = document.getElementById('feedbackList');
+                this.debugInfo = document.getElementById('debugInfo');
+                this.isVisible = false;
+                this.metricsInterval = null;
+                this.debugMode = false;
+                
+                // Anti-flicker mechanism
+                this.lastValidScore = 85; // Start with good score
+                this.scoreHistory = []; // Keep last 5 scores for stability
+                this.consecutiveLowScores = 0; // Count consecutive low scores
+                this.consecutiveGoodScores = 0; // Count consecutive good scores
+                this.minConsecutiveForShow = 3; // Need 3 consecutive low scores to show
+                this.minConsecutiveForHide = 5; // Need 5 consecutive good scores to hide
+                this.lastShowTime = 0;
+                this.lastHideTime = 0;
+                this.minShowDuration = 2000; // Minimum 2 seconds visible
+                this.minHideDuration = 1000; // Minimum 1 second hidden
+                
+                this.initializeVideo();
+                this.startMetricsMonitoring();
+                this.setupKeyboardShortcuts();
+            }
+            
+            setupKeyboardShortcuts() {
+                document.addEventListener('keydown', (e) => {
+                    // Press 'D' to toggle debug mode
+                    if (e.key.toLowerCase() === 'd' && e.ctrlKey) {
+                        this.toggleDebugMode();
+                    }
+                });
+            }
+            
+            toggleDebugMode() {
+                this.debugMode = !this.debugMode;
+                this.debugInfo.style.display = this.debugMode ? 'block' : 'none';
+                console.log('Debug mode:', this.debugMode ? 'ON' : 'OFF');
+            }
+            
+            updateDebugInfo(rawScore, filteredScore) {
+                if (!this.debugMode) return;
+                
+                const avgScore = this.scoreHistory.length > 0 ? 
+                    this.scoreHistory.reduce((a, b) => a + b, 0) / this.scoreHistory.length : 0;
+                
+                document.getElementById('rawScore').textContent = rawScore;
+                document.getElementById('filteredScore').textContent = filteredScore;
+                document.getElementById('avgScore').textContent = Math.round(avgScore);
+                document.getElementById('lowCount').textContent = this.consecutiveLowScores;
+                document.getElementById('goodCount').textContent = this.consecutiveGoodScores;
+            }
+            
+            initializeVideo() {
+                navigator.mediaDevices.getUserMedia({ video: true })
+                    .then(stream => {
+                        this.videoFeed.srcObject = stream;
+                        this.videoPlaceholder.style.display = 'none';
+                        this.videoFeed.style.display = 'block';
+                    })
+                    .catch(err => {
+                        console.error('Error accessing camera:', err);
+                        this.videoPlaceholder.style.display = 'block';
+                        this.videoFeed.style.display = 'none';
+                    });
+            }
+            
+            startMetricsMonitoring() {
+                this.metricsInterval = setInterval(() => {
+                    this.checkPostureScore();
+                }, 1000); // Check every second for responsiveness
+            }
+            
+            async checkPostureScore() {
+                try {
+                    const response = await fetch('http://localhost:8000/metrics');
+                    if (response.ok) {
+                        const metrics = await response.json();
+                        const rawScore = metrics.last_event?.score || 0;
+                        
+                        // Filter out glitchy scores (0, negative, or extremely low)
+                        const score = this.filterGlitchyScore(rawScore);
+                        
+                        this.updateScoreDisplay(score);
+                        
+                        // Update score history for stability
+                        this.updateScoreHistory(score);
+                        
+                        // Update debug info if enabled
+                        this.updateDebugInfo(rawScore, score);
+                        
+                        // Determine if we should show/hide based on stable patterns
+                        this.evaluateScorePattern(metrics);
+                    }
+                } catch (error) {
+                    console.error('Error checking metrics:', error);
+                }
+            }
+            
+            filterGlitchyScore(rawScore) {
+                // Filter out obviously glitchy values
+                if (rawScore <= 0 || rawScore > 100) {
+                    console.log(`Filtering glitchy score: ${rawScore}, using last valid: ${this.lastValidScore}`);
+                    return this.lastValidScore;
+                }
+                
+                // If score is very low (likely a glitch), use last valid score
+                if (rawScore < 20 && this.lastValidScore > 50) {
+                    console.log(`Filtering suspicious low score: ${rawScore}, using last valid: ${this.lastValidScore}`);
+                    return this.lastValidScore;
+                }
+                
+                // Update last valid score
+                this.lastValidScore = rawScore;
+                return rawScore;
+            }
+            
+            updateScoreHistory(score) {
+                this.scoreHistory.push(score);
+                // Keep only last 5 scores
+                if (this.scoreHistory.length > 5) {
+                    this.scoreHistory.shift();
+                }
+            }
+            
+            evaluateScorePattern(metrics) {
+                const currentTime = Date.now();
+                const score = this.lastValidScore;
+                
+                // Check if we have enough data
+                if (this.scoreHistory.length < 3) {
+                    return;
+                }
+                
+                // Calculate average of recent scores for stability
+                const recentAvg = this.scoreHistory.slice(-3).reduce((a, b) => a + b, 0) / 3;
+                
+                // Determine if score is consistently low or high
+                const isLowScore = recentAvg < 85;
+                const isGoodScore = recentAvg >= 85;
+                
+                if (isLowScore) {
+                    this.consecutiveLowScores++;
+                    this.consecutiveGoodScores = 0;
+                } else if (isGoodScore) {
+                    this.consecutiveGoodScores++;
+                    this.consecutiveLowScores = 0;
+                }
+                
+                // Show screen if we have enough consecutive low scores
+                if (this.consecutiveLowScores >= this.minConsecutiveForShow && !this.isVisible) {
+                    // Check minimum hide duration
+                    if (currentTime - this.lastHideTime >= this.minHideDuration) {
+                        this.showCorrectScreen(metrics);
+                        this.lastShowTime = currentTime;
+                    }
+                }
+                
+                // Hide screen if we have enough consecutive good scores
+                if (this.consecutiveGoodScores >= this.minConsecutiveForHide && this.isVisible) {
+                    // Check minimum show duration
+                    if (currentTime - this.lastShowTime >= this.minShowDuration) {
+                        this.hideCorrectScreen();
+                        this.lastHideTime = currentTime;
+                    }
+                }
+            }
+            
+            showCorrectScreen(metrics) {
+                if (!this.isVisible) {
+                    console.log('Showing correct screen - score pattern indicates poor posture');
+                    this.isVisible = true;
+                    this.correctScreen.classList.add('show');
+                    
+                    // Update feedback
+                    this.updateFeedback(metrics.last_event?.feedback || []);
+                    
+                    // Notify main process
+                    ipcRenderer.invoke('correct-screen-shown');
+                }
+            }
+            
+            hideCorrectScreen() {
+                if (this.isVisible) {
+                    console.log('Hiding correct screen - score pattern indicates good posture');
+                    this.isVisible = false;
+                    this.correctScreen.classList.remove('show');
+                    
+                    // Notify main process
+                    ipcRenderer.invoke('correct-screen-hidden');
+                }
+            }
+            
+            updateScoreDisplay(score) {
+                this.scoreDisplay.textContent = `Score: ${score}%`;
+                
+                // Change color based on score
+                if (score < 70) {
+                    this.scoreDisplay.style.color = '#ff4444';
+                } else if (score < 85) {
+                    this.scoreDisplay.style.color = '#ffaa00';
+                } else {
+                    this.scoreDisplay.style.color = '#00ff88';
+                }
+            }
+            
+            updateFeedback(feedback) {
+                this.feedbackList.innerHTML = '';
+                
+                if (feedback && feedback.length > 0) {
+                    feedback.forEach(item => {
+                        const li = document.createElement('li');
+                        li.className = 'feedback-item';
+                        li.textContent = item;
+                        this.feedbackList.appendChild(li);
+                    });
+                } else {
+                    const li = document.createElement('li');
+                    li.className = 'feedback-item';
+                    li.textContent = 'Improve your posture to dismiss this screen';
+                    this.feedbackList.appendChild(li);
+                }
+            }
+        }
+        
+        // Initialize when DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            new CorrectScreen();
+        });
+    </script>
+</body>
+</html>

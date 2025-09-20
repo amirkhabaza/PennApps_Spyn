@@ -6,6 +6,7 @@ class SpynApp {
         this.mainWindow = null;
         this.overlayWindow = null;
         this.cameraWindow = null;
+        this.correctScreenWindow = null;
         this.isMonitoring = false;
         this.isOverlayVisible = false;
         this.isCameraVisible = false;
@@ -264,12 +265,61 @@ class SpynApp {
         this.cameraWindow.setAlwaysOnTop(true, 'screen-saver');
     }
 
+    createCorrectScreenWindow() {
+        if (this.correctScreenWindow) {
+            this.correctScreenWindow.focus();
+            return;
+        }
+
+        // Create correct screen window
+        this.correctScreenWindow = new BrowserWindow({
+            width: 400,
+            height: 500,
+            webPreferences: {
+                nodeIntegration: true,
+                contextIsolation: false
+            },
+            frame: false,
+            alwaysOnTop: true,
+            skipTaskbar: true,
+            show: false,
+            resizable: false,
+            movable: false,
+            minimizable: false,
+            maximizable: false,
+            closable: false,
+            backgroundColor: '#1a1a1a'
+        });
+
+        this.correctScreenWindow.loadFile('correct-screen.html');
+        
+        // Prevent window from being closed
+        this.correctScreenWindow.on('close', (event) => {
+            event.preventDefault();
+        });
+        
+        // Prevent window from being moved
+        this.correctScreenWindow.on('move', (event) => {
+            event.preventDefault();
+        });
+
+        // Handle correct screen window closed
+        this.correctScreenWindow.on('closed', () => {
+            this.correctScreenWindow = null;
+        });
+
+        console.log('Correct screen window created and ready (hidden)');
+    }
+
     startMonitoring() {
         this.isMonitoring = true;
         this.createOverlayWindow();
         
         // Create camera window but keep it hidden initially
         this.createCameraWindow();
+        
+        // Create correct screen window but keep it hidden initially
+        this.createCorrectScreenWindow();
         
         // Start fast_demo process
         this.startFastDemo();
@@ -297,6 +347,12 @@ class SpynApp {
             this.cameraWindow.close();
             this.cameraWindow = null;
             this.isCameraVisible = false;
+        }
+        
+        // Close correct screen window when monitoring stops
+        if (this.correctScreenWindow && !this.correctScreenWindow.isDestroyed()) {
+            this.correctScreenWindow.close();
+            this.correctScreenWindow = null;
         }
         
         if (this.overlayWindow) {
@@ -638,6 +694,22 @@ class SpynApp {
 
         ipcMain.handle('get-app-version', () => {
             return app.getVersion();
+        });
+
+        // Correct screen handlers
+        ipcMain.handle('correct-screen-shown', () => {
+            if (this.correctScreenWindow && !this.correctScreenWindow.isDestroyed()) {
+                this.correctScreenWindow.show();
+                this.correctScreenWindow.focus();
+            }
+            return { success: true };
+        });
+
+        ipcMain.handle('correct-screen-hidden', () => {
+            if (this.correctScreenWindow && !this.correctScreenWindow.isDestroyed()) {
+                this.correctScreenWindow.hide();
+            }
+            return { success: true };
         });
 
         // Navigation handlers

@@ -41,6 +41,13 @@ DISPLAY_NAMES = {
 LM = {lm.name: lm for lm in PoseLandmark}
 
 # ================================================================
+# Score cutoffs
+# ================================================================
+EXCELLENT_CUTOFF = 95
+GOOD_CUTOFF = 85
+OK_CUTOFF = 70
+
+# ================================================================
 # Geometry helpers
 # ================================================================
 # --- ADD: direction-invariant line tilt helper (0..90 deg) ---

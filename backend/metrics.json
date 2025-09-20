@@ -1,16 +1,14 @@
 {
-  "overall_score": 77,
-  "session_duration_sec": 31,
-  "good_posture_pct": 49.3,
-  "corrections": 16,
+  "overall_score": 91,
+  "session_duration_sec": 7,
+  "good_posture_pct": 59.0,
+  "corrections": 1,
   "last_event": {
-    "t": 1758393034.231153,
-    "score": 46,
-    "status": "poor",
+    "t": 1758398476.014577,
+    "score": 98,
+    "status": "correct",
     "feedback": [
-      "Strong forward head posture—stack head over shoulders.",
-      "Severe head drop—raise your head and extend the neck.",
-      "Ears collapsing to shoulders—lift head and extend neck."
+      "Keep space between chin and shoulders."
     ]
   }
 }
