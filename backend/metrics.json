@@ -1,21 +1,19 @@
 {
-  "overall_score": 86,
-  "session_duration_sec": 345,
-  "good_posture_pct": 62.3,
+  "overall_score": 88,
+  "session_duration_sec": 113,
+  "good_posture_pct": 73.4,
   "corrections": [
     "Lift head slightly; avoid tucking chin too much.",
+    "Keep space between chin and shoulders.",
     "Lift your gaze slightly and lengthen the back of your neck.",
-    "Gently tuck the chin; keep the nose close to shoulder line.",
-    "Keep space between chin and shoulders."
+    "Gently tuck the chin; keep the nose close to shoulder line."
   ],
   "last_event": {
-    "t": 1758385381.5793269,
-    "score": 82,
-    "status": "improvable",
+    "t": 1758388665.695345,
+    "score": 93,
+    "status": "correct",
     "feedback": [
-      "Lift your gaze slightly and lengthen the back of your neck.",
-      "Gently tuck the chin; keep the nose close to shoulder line.",
-      "Lift head slightly; avoid tucking chin too much."
+      "Keep space between chin and shoulders."
     ]
   }
 }

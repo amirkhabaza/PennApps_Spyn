@@ -7,3 +7,4 @@ pydantic
 starlette
 requests
 google-generativeai
+python 3.10

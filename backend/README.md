@@ -31,8 +31,12 @@ source .venv/bin/activate
 # Install dependencies
 pip install -r requirements.txt
 
-### 2.Run (console mode, faster, no video output)
+# Run
+1.
+uvicorn server:app --reload --host 127.0.0.1 --port 8000
+2. Use a new terminal
 python fast_demo.py
+
 
 AR_PT_Coach_AI_Package/
 │── fast_demo.py        # Fast console demo
