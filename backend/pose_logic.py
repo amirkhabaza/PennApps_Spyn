@@ -11,13 +11,13 @@ import json
 import numpy as np
 import mediapipe as mp
 import requests
-
+import os
 PoseLandmark = mp.solutions.pose.PoseLandmark
 
 # ================================================================
 # Cerebras config (use env var in production; avoid hardcoding keys)
 # ================================================================
-CEREBRAS_API_KEY = "csk-nh34d2xky64v5my2y44htefey5x9vpcrcydd33nhkppwrmje"  # <-- replace with env var in production
+CEREBRAS_API_KEY = os.getenv("CEREBRAS_API_KEY") # <-- replace with env var in production
 CEREBRAS_URL = "https://api.cerebras.ai/v1/chat/completions"
 CEREBRAS_MODEL = "llama3.1-8b"  # small, fast, instruction-tuned model
 

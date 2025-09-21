@@ -285,6 +285,10 @@ class SessionAggregator:
             mp = metrics.get("missing_parts")
             if mp:
                 alerts_to_use.append({"type": "missing_parts", "parts": list(mp)})
+        
+        # Add poor posture alert when score is very low
+        if int(score) < 65:  # Poor posture threshold
+            alerts_to_use.append({"type": "poor_posture", "score": int(score)})
 
         # Normalize and apply cooldown dedupe
         normalized = self._normalize_alerts(alerts_to_use)
