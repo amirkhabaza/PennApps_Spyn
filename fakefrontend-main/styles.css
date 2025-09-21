@@ -747,6 +747,50 @@ body {
     display: block;
 }
 
+.voice-controls {
+    margin-top: 1rem;
+}
+
+.voice-controls label {
+    font-size: 0.8rem;
+    color: #888;
+    margin-bottom: 0.5rem;
+    display: block;
+}
+
+.voice-toggle-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid #444;
+    border-radius: 20px;
+    color: #fff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    font-size: 0.8rem;
+    transition: all 0.3s ease;
+}
+
+.voice-toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: #666;
+}
+
+.voice-toggle-btn.active {
+    background: #00bfff;
+    border-color: #00bfff;
+    color: #000;
+}
+
+.voice-icon {
+    font-size: 1rem;
+}
+
+.voice-text {
+    font-weight: 500;
+}
+
 .transparency-buttons {
     display: flex;
     gap: 0.5rem;
@@ -1976,4 +2020,55 @@ body.signin-page {
     .form-section h2 {
         font-size: 1.5rem;
     }
+}
+
+/* Control Buttons Container */
+.control-buttons {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    margin-top: 1.5rem;
+}
+
+/* Voice Toggle in Hero Section */
+.voice-toggle-hero {
+    background: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+    border: 2px solid #444444;
+    padding: 1rem 1.5rem;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    backdrop-filter: blur(10px);
+}
+
+.voice-toggle-hero:hover {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: #666666;
+    transform: translateY(-2px);
+}
+
+.voice-toggle-hero.active {
+    background: linear-gradient(135deg, #00ff88, #00cc6a);
+    border-color: #00ff88;
+    color: #000000;
+    box-shadow: 0 8px 32px rgba(0, 255, 136, 0.3);
+}
+
+.voice-toggle-hero.active:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 40px rgba(0, 255, 136, 0.4);
+}
+
+.voice-toggle-hero .voice-icon {
+    font-size: 1.2rem;
+}
+
+.voice-toggle-hero .voice-text {
+    font-weight: 600;
 }

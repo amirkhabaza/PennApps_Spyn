@@ -18,6 +18,7 @@ class Spyn {
         this.bindEvents();
         this.initializeChart();
         this.setupIPC();
+        this.initializeVoiceHelpers();
     }
 
     initializeElements() {
@@ -36,6 +37,10 @@ class Spyn {
         
         // Sign-out element
         this.signoutBtn = document.getElementById('signoutBtn');
+        
+        // Voice helper toggles
+        this.voiceToggleMain = document.getElementById('voiceToggleMain');
+        this.voiceToggleHero = document.getElementById('voiceToggleHero');
         
         // Report elements
         this.overallScore = document.getElementById('overallScore');
@@ -80,6 +85,14 @@ class Spyn {
         }
         if (this.signoutBtn) {
             this.signoutBtn.addEventListener('click', () => this.handleSignOut());
+        }
+        
+        // Voice helper toggles
+        if (this.voiceToggleMain) {
+            this.voiceToggleMain.addEventListener('click', () => this.toggleVoiceHelpers());
+        }
+        if (this.voiceToggleHero) {
+            this.voiceToggleHero.addEventListener('click', () => this.toggleVoiceHelpers());
         }
         
         // Keyboard shortcuts
@@ -728,6 +741,12 @@ class Spyn {
                             this.toggleCamera();
                         }
                         break;
+                    case 'v':
+                        if (e.shiftKey) {
+                            e.preventDefault();
+                            this.toggleVoiceHelpers();
+                        }
+                        break;
                     case 'o':
                         if (e.shiftKey) {
                             e.preventDefault();
@@ -821,6 +840,118 @@ class Spyn {
                 this.hideShortcutsModal();
             }
         }
+    }
+
+    initializeVoiceHelpers() {
+        // Initialize voice helper state from localStorage
+        this.voiceHelpersEnabled = localStorage.getItem('voiceHelpersEnabled') === 'true';
+        this.updateVoiceToggleState();
+    }
+    
+    updateVoiceToggleState() {
+        // Update main dashboard voice toggle
+        if (this.voiceToggleMain) {
+            const voiceIcon = this.voiceToggleMain.querySelector('.voice-icon');
+            const voiceText = this.voiceToggleMain.querySelector('.voice-text');
+            
+            if (this.voiceHelpersEnabled) {
+                this.voiceToggleMain.classList.add('active');
+                if (voiceIcon) voiceIcon.textContent = '🔊';
+                if (voiceText) voiceText.textContent = 'ON';
+                this.voiceToggleMain.title = 'Voice Helpers ON - Click to disable';
+            } else {
+                this.voiceToggleMain.classList.remove('active');
+                if (voiceIcon) voiceIcon.textContent = '🔇';
+                if (voiceText) voiceText.textContent = 'OFF';
+                this.voiceToggleMain.title = 'Voice Helpers OFF - Click to enable';
+            }
+        }
+        
+        // Update hero section voice toggle
+        if (this.voiceToggleHero) {
+            const voiceIcon = this.voiceToggleHero.querySelector('.voice-icon');
+            const voiceText = this.voiceToggleHero.querySelector('.voice-text');
+            
+            if (this.voiceHelpersEnabled) {
+                this.voiceToggleHero.classList.add('active');
+                if (voiceIcon) voiceIcon.textContent = '🔊';
+                if (voiceText) voiceText.textContent = 'Voice ON';
+                this.voiceToggleHero.title = 'Voice Helpers ON - Click to disable (Ctrl+Shift+V)';
+            } else {
+                this.voiceToggleHero.classList.remove('active');
+                if (voiceIcon) voiceIcon.textContent = '🔇';
+                if (voiceText) voiceText.textContent = 'Voice OFF';
+                this.voiceToggleHero.title = 'Voice Helpers OFF - Click to enable (Ctrl+Shift+V)';
+            }
+        }
+    }
+    
+    toggleVoiceHelpers() {
+        this.voiceHelpersEnabled = !this.voiceHelpersEnabled;
+        localStorage.setItem('voiceHelpersEnabled', this.voiceHelpersEnabled.toString());
+        this.updateVoiceToggleState();
+        
+        console.log('Voice helpers:', this.voiceHelpersEnabled ? 'ENABLED' : 'DISABLED');
+        
+        // Show notification
+        this.showVoiceToggleNotification();
+    }
+    
+    showVoiceToggleNotification() {
+        // Create notification
+        const notification = document.createElement('div');
+        notification.className = 'voice-notification';
+        notification.innerHTML = `
+            <div class="notification-content">
+                <div class="notification-icon">${this.voiceHelpersEnabled ? '🔊' : '🔇'}</div>
+                <div class="notification-text">Voice helpers ${this.voiceHelpersEnabled ? 'enabled' : 'disabled'}</div>
+            </div>
+        `;
+        
+        // Add styles
+        notification.style.cssText = `
+            position: fixed;
+            top: 2rem;
+            right: 2rem;
+            background: rgba(26, 26, 26, 0.95);
+            color: ${this.voiceHelpersEnabled ? '#00ff88' : '#888'};
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            border: 1px solid ${this.voiceHelpersEnabled ? 'rgba(0, 255, 136, 0.3)' : 'rgba(136, 136, 136, 0.3)'};
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            animation: slideInRight 0.5s ease-out;
+        `;
+        
+        // Add animation
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideInRight {
+                from {
+                    opacity: 0;
+                    transform: translateX(100%);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateX(0);
+                }
+            }
+        `;
+        document.head.appendChild(style);
+        
+        document.body.appendChild(notification);
+        
+        // Remove after delay
+        setTimeout(() => {
+            notification.style.animation = 'slideInRight 0.5s ease-out reverse';
+            setTimeout(() => {
+                notification.remove();
+                style.remove();
+            }, 500);
+        }, 3000);
     }
 
     async handleSignOut() {
