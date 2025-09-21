@@ -44,10 +44,16 @@
                         <div class="hero-content">
                             <h2>Ready to Improve Your Posture?</h2>
                             <p>Click below to start monitoring your posture in real-time</p>
-                            <button id="startMonitoringBtn" class="start-btn">
-                                <span class="btn-icon">▶</span>
-                                Start Spyn Monitoring
-                            </button>
+                            <div class="control-buttons">
+                                <button id="startMonitoringBtn" class="start-btn">
+                                    <span class="btn-icon">▶</span>
+                                    Start Spyn Monitoring
+                                </button>
+                                <button id="voiceToggleHero" class="voice-toggle-hero" title="Toggle Voice Helpers (Ctrl+Shift+V)">
+                                    <span class="voice-icon">🔇</span>
+                                    <span class="voice-text">Voice OFF</span>
+                                </button>
+                            </div>
                         </div>
                     </div>
 
@@ -198,6 +204,14 @@
                     <button id="visibleBtn" class="transparency-btn active" data-level="visible">Full</button>
                 </div>
             </div>
+
+            <div class="voice-controls">
+                <label>Voice Helpers:</label>
+                <button id="voiceToggleMain" class="voice-toggle-btn" title="Toggle Voice Helpers">
+                    <span class="voice-icon">🔇</span>
+                    <span class="voice-text">OFF</span>
+                </button>
+            </div>
         </div>
     </div>
 
@@ -267,6 +281,10 @@
                         <div class="shortcut-item">
                             <span class="shortcut-key">Ctrl+Shift+O</span>
                             <span class="shortcut-desc">Center Overlay</span>
+                        </div>
+                        <div class="shortcut-item">
+                            <span class="shortcut-key">Ctrl+Shift+V</span>
+                            <span class="shortcut-desc">Toggle Voice Helpers</span>
                         </div>
                     </div>
                     

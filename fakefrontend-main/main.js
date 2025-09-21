@@ -271,7 +271,11 @@ class SpynApp {
             return;
         }
 
-        // Create correct screen window
+        // Get screen dimensions
+        const primaryDisplay = screen.getPrimaryDisplay();
+        const { width, height } = primaryDisplay.workAreaSize;
+
+        // Create correct screen window with overlay-like properties
         this.correctScreenWindow = new BrowserWindow({
             width: 400,
             height: 500,
@@ -288,7 +292,21 @@ class SpynApp {
             minimizable: false,
             maximizable: false,
             closable: false,
-            backgroundColor: '#1a1a1a'
+            backgroundColor: '#1a1a1a',
+            // Position in center of screen
+            x: Math.round((width - 400) / 2),
+            y: Math.round((height - 500) / 2),
+            // Additional properties for true persistence across windows
+            fullscreenable: false,
+            focusable: false, // Prevent focus stealing
+            acceptFirstMouse: true, // Allow clicking through
+            // macOS specific properties to prevent desktop switching
+            visibleOnAllWorkspaces: true, // Show on all desktop spaces
+            showInactive: true, // Don't activate when shown
+            disableAutoHideCursor: true, // Don't hide cursor
+            // Prevent window from becoming active
+            alwaysOnTop: true,
+            skipTaskbar: true
         });
 
         this.correctScreenWindow.loadFile('correct-screen.html');
@@ -710,6 +728,11 @@ class SpynApp {
             if (this.correctScreenWindow && !this.correctScreenWindow.isDestroyed()) {
                 this.correctScreenWindow.show();
                 this.correctScreenWindow.focus();
+                // Force window to stay on top and be visible on all workspaces
+                this.correctScreenWindow.setAlwaysOnTop(true);
+                this.correctScreenWindow.setVisibleOnAllWorkspaces(true);
+                // Ensure it can't be minimized or hidden by the user
+                this.correctScreenWindow.setSkipTaskbar(true);
             }
             return { success: true };
         });

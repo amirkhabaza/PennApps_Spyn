@@ -1,14 +1,14 @@
 {
-  "overall_score": 74,
-  "session_duration_sec": 118,
-  "good_posture_pct": 46.2,
-  "corrections": 35,
+  "overall_score": 87,
+  "session_duration_sec": 12,
+  "good_posture_pct": 71.6,
+  "corrections": 2,
   "last_event": {
-    "t": 1758411961.181839,
-    "score": 93,
+    "t": 1758415401.46888,
+    "score": 91,
     "status": "correct",
     "feedback": [
-      "Lift head slightly; avoid tucking chin too much."
+      "Keep space between chin and shoulders."
     ]
   },
   "alerts": []
