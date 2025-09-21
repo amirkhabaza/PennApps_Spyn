@@ -624,31 +624,40 @@ def _angle_hip_line(kps, side: str) -> float:
 
 
 def _analyze_exercise_squat(kps):
-    # Keeping your original squat logic
     knee_L = _angle_3pts(_get_xy(kps, "LEFT_HIP"), _get_xy(kps, "LEFT_KNEE"), _get_xy(kps, "LEFT_ANKLE"))
     knee_R = _angle_3pts(_get_xy(kps, "RIGHT_HIP"), _get_xy(kps, "RIGHT_KNEE"), _get_xy(kps, "RIGHT_ANKLE"))
-    back_L = _angle_3pts(_get_xy(kps, "LEFT_SHOULDER"), _get_xy(kps, "LEFT_HIP"), _get_xy(kps, "LEFT_KNEE"))
-    back_R = _angle_3pts(_get_xy(kps, "RIGHT_SHOULDER"), _get_xy(kps, "RIGHT_HIP"), _get_xy(kps, "RIGHT_KNEE"))
+    back = np.nanmean([
+        _angle_3pts(_get_xy(kps, "LEFT_SHOULDER"), _get_xy(kps, "LEFT_HIP"), _get_xy(kps, "LEFT_KNEE")),
+        _angle_3pts(_get_xy(kps, "RIGHT_SHOULDER"), _get_xy(kps, "RIGHT_HIP"), _get_xy(kps, "RIGHT_KNEE"))
+    ])
 
     knee = np.nanmean([knee_L, knee_R])
-    back = np.nanmean([back_L, back_R])
-
     score, feedback = 100, []
-    if not (70 <= knee <= 100):
-        feedback.append("Hit ~90° at the knees at the bottom.")
-        score -= int(min(40, abs(knee - 90) * 0.8)) if not np.isnan(knee) else 20
+
+    if np.isnan(knee) or not (80 <= knee <= 100):
+        feedback.append("Aim for ~90° at knees (not too shallow/deep).")
+        if not np.isnan(knee):
+            score -= int(min(40, abs(knee - 90) * 0.8))
+        else:
+            score -= 20
+
     if not np.isnan(back) and back < 150:
-        feedback.append("Keep chest up; avoid collapsing torso.")
-        score -= int(min(30, (150 - back) * 0.7))
-    elif np.isnan(back):
-        score -= 10  # weak penalty if torso not visible
+        feedback.append("Keep chest up; avoid leaning forward.")
+        score -= int(min(25, (150 - back) * 0.7))
+
+    if not np.isnan(knee_L) and not np.isnan(knee_R) and abs(knee_L - knee_R) > 10:
+        feedback.append("Balance both legs evenly.")
+        score -= 10
 
     status = "correct" if score >= 85 else "improvable"
-    metrics = {"knee_angle": None if np.isnan(knee) else round(float(knee), 1),
-               "torso_angle": None if np.isnan(back) else round(float(back), 1)}
+    metrics = {
+        "knee_angle": None if np.isnan(knee) else round(float(knee), 1),
+        "torso_angle": None if np.isnan(back) else round(float(back), 1),
+    }
     if not feedback:
-        feedback = ["Nice squat depth and torso position."]
+        feedback = ["Solid squat depth and upright torso."]
     return status, feedback, max(0, min(100, score)), metrics
+
 
 
 def _analyze_exercise_pushup(kps):
@@ -661,41 +670,174 @@ def _analyze_exercise_pushup(kps):
     elb = np.nanmean([left_elb, right_elb])
 
     score, feedback = 100, []
-    if np.isnan(elb) or not (70 <= elb <= 110):
-        feedback.append("Aim ~90° at elbows at the bottom.")
+
+    if np.isnan(elb) or not (80 <= elb <= 100):
+        feedback.append("Lower to ~90° at elbows for full range.")
         if not np.isnan(elb):
             score -= int(min(35, abs(elb - 90)))
         else:
             score -= 15
-    if np.isnan(hips) or hips < 165:
-        feedback.append("Keep a straight line from shoulder to ankle (tight core).")
+
+    if np.isnan(hips) or hips < 170:
+        feedback.append("Keep a straight plank line (avoid sagging/arching).")
         if not np.isnan(hips):
-            score -= int(min(25, (165 - hips) * 0.7))
+            score -= int(min(25, (170 - hips) * 0.7))
         else:
             score -= 10
 
+    # 左右差异
+    if not np.isnan(left_elb) and not np.isnan(right_elb) and abs(left_elb - right_elb) > 10:
+        feedback.append("Balance both arms equally.")
+        score -= 10
+
     status = "correct" if score >= 85 else "improvable"
-    metrics = {"elbow_angle": None if np.isnan(elb) else round(float(elb), 1),
-               "bodyline_angle": None if np.isnan(hips) else round(float(hips), 1)}
+    metrics = {
+        "elbow_angle": None if np.isnan(elb) else round(float(elb), 1),
+        "bodyline_angle": None if np.isnan(hips) else round(float(hips), 1),
+    }
     if not feedback:
-        feedback = ["Push-up form looks solid."]
+        feedback = ["Strong push-up with good range and body alignment."]
     return status, feedback, max(0, min(100, score)), metrics
 
 
+
 def _analyze_exercise_bicep(kps):
-    elb = _elbow_angle(kps, "RIGHT")
-    score, feedback = 100, []
-    if np.isnan(elb) or elb > 60:
-        feedback.append("Curl higher to fully flex the elbow (~40–60°).")
-        if not np.isnan(elb):
-            score -= int(min(30, (elb - 60)))
-        else:
-            score -= 10
-    status = "correct" if score >= 85 else "improvable"
-    return status, (feedback or ["Nice curl height."]), max(0, min(100, score)), {
-        "elbow_angle": None if np.isnan(elb) else round(float(elb), 1)
+    """
+    Bicep curl analysis (single-frame, webcam-friendly).
+    Matches project style: weighted penalties + concise feedback.
+
+    Angle targets (elbow):
+      - Bottom (extended): ~150–170°
+      - Top (flexed):     ~40–60°
+      - Midpoint strength: ~90° (informational; not directly scored here)
+
+    Metrics (weights sum ≈ 100):
+      - Elbow deviation to TOP (target ~50°) ..................... 30
+      - Elbow deviation to BOTTOM (target ~160°) ................. 20
+      - Shoulder sway (upper-arm stability vs vertical) .......... 25
+      - ROM proxy (wrist height vs shoulder–hip span; higher=better) 25
+    Returns: (status, feedback, score, metrics)
+    """
+
+    # ---------------------------------------------------------
+    # Step 1: pick visible side (RIGHT preferred)
+    # ---------------------------------------------------------
+    def _side_ok(side: str) -> bool:
+        sh = _get_xy(kps, f"{side}_SHOULDER")
+        el = _get_xy(kps, f"{side}_ELBOW")
+        wr = _get_xy(kps, f"{side}_WRIST")
+        hip = _get_xy(kps, f"{side}_HIP")
+        return not (np.any(np.isnan(sh)) or np.any(np.isnan(el)) or
+                    np.any(np.isnan(wr)) or np.any(np.isnan(hip)))
+
+    side = "RIGHT" if _side_ok("RIGHT") else ("LEFT" if _side_ok("LEFT") else None)
+    if side is None:
+        return (
+            "improvable",
+            ["Show shoulder, elbow, wrist, and hip clearly to analyze curls."],
+            70,
+            {
+                "side_used": None,
+                "elbow_angle": None,
+                "elbow_dev_top": None,
+                "elbow_dev_bottom": None,
+                "shoulder_sway_deg": None,
+                "rom_norm": None,
+                "used_weight_sum": 0.0,
+            }
+        )
+
+    # Landmarks (chosen side)
+    sh = _get_xy(kps, f"{side}_SHOULDER")
+    el = _get_xy(kps, f"{side}_ELBOW")
+    wr = _get_xy(kps, f"{side}_WRIST")
+    hip = _get_xy(kps, f"{side}_HIP")
+
+    # ---------------------------------------------------------
+    # Step 2: metrics
+    # ---------------------------------------------------------
+    elbow = _elbow_angle(kps, side)  # uses your existing helper
+    # deviations (lower is better)
+    dev_top    = np.nan if np.isnan(elbow) else float(min(abs(elbow - 50.0), 60.0))   # target 40–60°
+    dev_bottom = np.nan if np.isnan(elbow) else float(min(abs(elbow - 160.0), 60.0))  # target 150–170°
+
+    # Upper-arm stability: smaller angle = closer to vertical line (pinned)
+    shoulder_sway = _angle_to_vertical_deg(sh, el)
+
+    # ROM proxy (higher is better): wrist height vs shoulder–hip span
+    if not (np.any(np.isnan(sh)) or np.any(np.isnan(hip)) or np.any(np.isnan(wr))):
+        span = abs(sh[1] - hip[1]) + 1e-8
+        rom_norm = float((sh[1] - wr[1]) / span)  # higher wrist => larger positive value
+    else:
+        rom_norm = np.nan
+
+    # ---------------------------------------------------------
+    # Step 3: weights, thresholds, coaching
+    # ---------------------------------------------------------
+    weights = {"dev_top": 30.0, "dev_bottom": 20.0, "sway": 25.0, "rom": 25.0}
+
+    # Progressive penalty thresholds (good, warn, bad)
+    top_thr = (12.0, 22.0, 34.0)       # deviation to 50° (lower = better)
+    top_msgs = ("Strong top contraction.", "Curl slightly higher for peak squeeze.", "Incomplete top—aim ~50° elbow angle.")
+
+    bot_thr = (10.0, 18.0, 28.0)       # deviation to 160° (lower = better)
+    bot_msgs = ("Full extension achieved.", "Extend a touch more (don’t hyperextend).", "Limited bottom—control down to ~160°.")
+
+    sway_thr = (20.0, 30.0, 45.0)      # lower = better
+    sway_msgs = ("Upper arm stable.", "Pin elbow closer to your side.", "Too much swing—keep upper arm still.")
+
+    rom_thr = (0.12, 0.07, 0.03)       # higher = better → invert internally
+    rom_msgs = ("Great ROM.", "Lift slightly higher at the top.", "Limited ROM—bring wrist higher.")
+
+    # ---------------------------------------------------------
+    # Step 4: penalties + feedback
+    # ---------------------------------------------------------
+    feedback_candidates: List[str] = []
+    penalties = []
+    used_weight_sum = 0.0
+
+    def add_low(val, thr, w, msgs):
+        nonlocal used_weight_sum
+        if np.isnan(val):
+            return
+        used_weight_sum += w
+        pen, _ = _penalty_low_is_better(val, *thr, w)
+        penalties.append(pen)
+        fb = _collect_feedback("", val, thr, msgs)
+        if fb:
+            feedback_candidates.append(fb)
+
+    # low-is-better metrics
+    add_low(dev_top,    top_thr, weights["dev_top"], top_msgs)
+    add_low(dev_bottom, bot_thr, weights["dev_bottom"], bot_msgs)
+    add_low(shoulder_sway, sway_thr, weights["sway"], sway_msgs)
+
+    # higher-is-better rom_norm → invert
+    if not np.isnan(rom_norm):
+        inv_val = 1.0 - rom_norm
+        inv_thr = (1.0 - rom_thr[0], 1.0 - rom_thr[1], 1.0 - rom_thr[2])
+        add_low(inv_val, inv_thr, weights["rom"], rom_msgs)
+
+    # ---------------------------------------------------------
+    # Step 5: score, status, metrics
+    # ---------------------------------------------------------
+    total_penalty = float(sum(penalties))
+    score_raw = 100.0 - total_penalty
+    score = _scale_score_from_valid_weights(score_raw, used_weight_sum) if used_weight_sum < 99.0 else float(np.clip(score_raw, 0.0, 100.0))
+    status = "correct" if score >= 85 else ("improvable" if score >= 70 else "poor")
+
+    metrics = {
+        "side_used": side,
+        "elbow_angle": None if np.isnan(elbow) else round(float(elbow), 1),
+        "elbow_dev_top": None if np.isnan(dev_top) else round(float(dev_top), 1),
+        "elbow_dev_bottom": None if np.isnan(dev_bottom) else round(float(dev_bottom), 1),
+        "shoulder_sway_deg": None if np.isnan(shoulder_sway) else round(float(shoulder_sway), 1),
+        "rom_norm": None if np.isnan(rom_norm) else round(float(rom_norm), 3),
+        "used_weight_sum": round(float(used_weight_sum), 1),
     }
 
+    feedback = feedback_candidates[:3] if feedback_candidates else ["Clean curl mechanics."]
+    return status, feedback, int(round(score)), metrics
 
 def _analyze_exercise(category: str, action: str, kps):
     if action == "squat":      return _analyze_exercise_squat(kps)
