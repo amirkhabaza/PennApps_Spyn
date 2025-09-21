@@ -624,6 +624,9 @@ def _angle_hip_line(kps, side: str) -> float:
 
 
 def _analyze_exercise_squat(kps):
+    """
+    改进的深蹲分析，使用更智能的评分机制
+    """
     knee_L = _angle_3pts(_get_xy(kps, "LEFT_HIP"), _get_xy(kps, "LEFT_KNEE"), _get_xy(kps, "LEFT_ANKLE"))
     knee_R = _angle_3pts(_get_xy(kps, "RIGHT_HIP"), _get_xy(kps, "RIGHT_KNEE"), _get_xy(kps, "RIGHT_ANKLE"))
     back = np.nanmean([
@@ -632,35 +635,116 @@ def _analyze_exercise_squat(kps):
     ])
 
     knee = np.nanmean([knee_L, knee_R])
-    score, feedback = 100, []
+    
+    # 更智能的评分系统
+    score = 100
+    feedback = []
+    penalties = []
 
-    if np.isnan(knee) or not (80 <= knee <= 100):
-        feedback.append("Aim for ~90° at knees (not too shallow/deep).")
-        if not np.isnan(knee):
-            score -= int(min(40, abs(knee - 90) * 0.8))
-        else:
-            score -= 20
+    # 1. 膝盖角度评分 (权重40%)
+    if not np.isnan(knee):
+        if 85 <= knee <= 95:  # 理想范围
+            knee_score = 100
+        elif 75 <= knee <= 105:  # 可接受范围
+            knee_score = 85 - abs(knee - 90) * 0.5
+        elif 60 <= knee <= 120:  # 勉强范围
+            knee_score = 70 - abs(knee - 90) * 0.3
+        else:  # 超出范围
+            knee_score = max(30, 50 - abs(knee - 90) * 0.2)
+        
+        if knee_score < 90:
+            if knee < 85:
+                feedback.append("Deeper squat needed - aim for ~90° at knees.")
+            elif knee > 95:
+                feedback.append("Reduce depth slightly - avoid over-squatting.")
+            penalties.append(("knee_angle", 40 * (100 - knee_score) / 100))
+    else:
+        knee_score = 50  # 无法检测到膝盖角度
+        feedback.append("Unable to detect knee position - ensure full body is visible.")
+        penalties.append(("knee_angle", 20))
 
-    if not np.isnan(back) and back < 150:
-        feedback.append("Keep chest up; avoid leaning forward.")
-        score -= int(min(25, (150 - back) * 0.7))
+    # 2. 躯干角度评分 (权重30%)
+    if not np.isnan(back):
+        if back >= 165:  # 理想直立
+            torso_score = 100
+        elif back >= 150:  # 可接受
+            torso_score = 85 - (165 - back) * 0.5
+        elif back >= 130:  # 勉强
+            torso_score = 70 - (150 - back) * 0.3
+        else:  # 太前倾
+            torso_score = max(20, 50 - (130 - back) * 0.4)
+        
+        if torso_score < 90:
+            feedback.append("Keep chest up and torso upright.")
+            penalties.append(("torso_angle", 30 * (100 - torso_score) / 100))
+    else:
+        torso_score = 60  # 无法检测到躯干角度
+        penalties.append(("torso_angle", 12))
 
-    if not np.isnan(knee_L) and not np.isnan(knee_R) and abs(knee_L - knee_R) > 10:
-        feedback.append("Balance both legs evenly.")
-        score -= 10
+    # 3. 平衡性评分 (权重20%)
+    if not np.isnan(knee_L) and not np.isnan(knee_R):
+        balance_diff = abs(knee_L - knee_R)
+        if balance_diff <= 5:  # 很好平衡
+            balance_score = 100
+        elif balance_diff <= 10:  # 可接受
+            balance_score = 90 - balance_diff * 0.5
+        elif balance_diff <= 15:  # 勉强
+            balance_score = 80 - balance_diff * 0.4
+        else:  # 不平衡
+            balance_score = max(30, 70 - balance_diff * 0.3)
+        
+        if balance_score < 90:
+            feedback.append("Balance both legs evenly.")
+            penalties.append(("balance", 20 * (100 - balance_score) / 100))
+    else:
+        balance_score = 70  # 无法检测到平衡
+        penalties.append(("balance", 6))
 
-    status = "correct" if score >= 85 else "improvable"
+    # 4. 深度一致性评分 (权重10%)
+    depth_consistency = 85  # 基础分数
+    if not np.isnan(knee) and 85 <= knee <= 95:
+        depth_consistency = 100
+    elif not np.isnan(knee):
+        depth_consistency = max(60, 100 - abs(knee - 90) * 0.4)
+    
+    if depth_consistency < 90:
+        penalties.append(("depth_consistency", 10 * (100 - depth_consistency) / 100))
+
+    # 计算最终分数
+    total_penalty = sum(penalty[1] for penalty in penalties)
+    final_score = max(0, min(100, int(100 - total_penalty)))
+
+    # 状态判定
+    if final_score >= 90:
+        status = "excellent"
+    elif final_score >= 80:
+        status = "correct"
+    elif final_score >= 65:
+        status = "improvable"
+    else:
+        status = "poor"
+
     metrics = {
         "knee_angle": None if np.isnan(knee) else round(float(knee), 1),
         "torso_angle": None if np.isnan(back) else round(float(back), 1),
+        "balance_diff": None if (np.isnan(knee_L) or np.isnan(knee_R)) else round(float(abs(knee_L - knee_R)), 1),
+        "knee_score": round(float(knee_score), 1) if not np.isnan(knee) else None,
+        "torso_score": round(float(torso_score), 1) if not np.isnan(back) else None,
+        "balance_score": round(float(balance_score), 1) if not (np.isnan(knee_L) or np.isnan(knee_R)) else None,
+        "penalties": [{"type": p[0], "amount": round(p[1], 1)} for p in penalties]
     }
+    
     if not feedback:
-        feedback = ["Solid squat depth and upright torso."]
-    return status, feedback, max(0, min(100, score)), metrics
+        feedback = ["Excellent squat form!"]
+    
+    return status, feedback, final_score, metrics
 
 
 
 def _analyze_exercise_pushup(kps):
+    """
+    改进的俯卧撑分析，使用更智能的评分机制
+    """
     left_elb = _elbow_angle(kps, "LEFT")
     right_elb = _elbow_angle(kps, "RIGHT")
     hips = np.nanmean([
@@ -669,35 +753,111 @@ def _analyze_exercise_pushup(kps):
     ])
     elb = np.nanmean([left_elb, right_elb])
 
-    score, feedback = 100, []
+    # 更智能的评分系统
+    feedback = []
+    penalties = []
 
-    if np.isnan(elb) or not (80 <= elb <= 100):
-        feedback.append("Lower to ~90° at elbows for full range.")
-        if not np.isnan(elb):
-            score -= int(min(35, abs(elb - 90)))
+    # 1. 肘关节角度评分 (权重45%)
+    if not np.isnan(elb):
+        if 85 <= elb <= 95:  # 理想深度
+            elbow_score = 100
+        elif 75 <= elb <= 105:  # 可接受范围
+            elbow_score = 90 - abs(elb - 90) * 0.3
+        elif 60 <= elb <= 120:  # 勉强范围
+            elbow_score = 75 - abs(elb - 90) * 0.2
+        else:  # 超出范围
+            elbow_score = max(25, 50 - abs(elb - 90) * 0.15)
+        
+        if elbow_score < 90:
+            if elb > 95:
+                feedback.append("Lower deeper - aim for ~90° at elbows.")
+            elif elb < 85:
+                feedback.append("Good depth! Maintain full range of motion.")
+            penalties.append(("elbow_angle", 45 * (100 - elbow_score) / 100))
+    else:
+        elbow_score = 40  # 无法检测到肘关节角度
+        feedback.append("Unable to detect elbow position - ensure arms are visible.")
+        penalties.append(("elbow_angle", 27))
+
+    # 2. 身体直线评分 (权重35%)
+    if not np.isnan(hips):
+        if hips >= 175:  # 理想直线
+            bodyline_score = 100
+        elif hips >= 165:  # 可接受
+            bodyline_score = 90 - (175 - hips) * 0.5
+        elif hips >= 150:  # 勉强
+            bodyline_score = 75 - (165 - hips) * 0.3
+        else:  # 太弯曲
+            bodyline_score = max(20, 50 - (150 - hips) * 0.4)
+        
+        if bodyline_score < 90:
+            if hips < 165:
+                feedback.append("Straighten body line - avoid sagging or arching.")
+            penalties.append(("bodyline_angle", 35 * (100 - bodyline_score) / 100))
+    else:
+        bodyline_score = 60  # 无法检测到身体直线
+        penalties.append(("bodyline_angle", 14))
+
+    # 3. 手臂平衡评分 (权重15%)
+    if not np.isnan(left_elb) and not np.isnan(right_elb):
+        arm_balance_diff = abs(left_elb - right_elb)
+        if arm_balance_diff <= 5:  # 很好平衡
+            arm_balance_score = 100
+        elif arm_balance_diff <= 10:  # 可接受
+            arm_balance_score = 90 - arm_balance_diff * 0.5
+        elif arm_balance_diff <= 15:  # 勉强
+            arm_balance_score = 80 - arm_balance_diff * 0.4
+        else:  # 不平衡
+            arm_balance_score = max(30, 70 - arm_balance_diff * 0.3)
+        
+        if arm_balance_score < 90:
+            feedback.append("Balance both arms equally.")
+            penalties.append(("arm_balance", 15 * (100 - arm_balance_score) / 100))
+    else:
+        arm_balance_score = 70  # 无法检测到手臂平衡
+        penalties.append(("arm_balance", 4.5))
+
+    # 4. 稳定性评分 (权重5%)
+    stability_score = 85  # 基础分数，可以根据需要调整
+    if not np.isnan(elb) and not np.isnan(hips):
+        if 85 <= elb <= 95 and hips >= 170:
+            stability_score = 100
+        elif 75 <= elb <= 105 and hips >= 160:
+            stability_score = 90
         else:
-            score -= 15
+            stability_score = 75
+    
+    if stability_score < 90:
+        penalties.append(("stability", 5 * (100 - stability_score) / 100))
 
-    if np.isnan(hips) or hips < 170:
-        feedback.append("Keep a straight plank line (avoid sagging/arching).")
-        if not np.isnan(hips):
-            score -= int(min(25, (170 - hips) * 0.7))
-        else:
-            score -= 10
+    # 计算最终分数
+    total_penalty = sum(penalty[1] for penalty in penalties)
+    final_score = max(0, min(100, int(100 - total_penalty)))
 
-    # 左右差异
-    if not np.isnan(left_elb) and not np.isnan(right_elb) and abs(left_elb - right_elb) > 10:
-        feedback.append("Balance both arms equally.")
-        score -= 10
+    # 状态判定
+    if final_score >= 90:
+        status = "excellent"
+    elif final_score >= 80:
+        status = "correct"
+    elif final_score >= 65:
+        status = "improvable"
+    else:
+        status = "poor"
 
-    status = "correct" if score >= 85 else "improvable"
     metrics = {
         "elbow_angle": None if np.isnan(elb) else round(float(elb), 1),
         "bodyline_angle": None if np.isnan(hips) else round(float(hips), 1),
+        "arm_balance_diff": None if (np.isnan(left_elb) or np.isnan(right_elb)) else round(float(abs(left_elb - right_elb)), 1),
+        "elbow_score": round(float(elbow_score), 1) if not np.isnan(elb) else None,
+        "bodyline_score": round(float(bodyline_score), 1) if not np.isnan(hips) else None,
+        "arm_balance_score": round(float(arm_balance_score), 1) if not (np.isnan(left_elb) or np.isnan(right_elb)) else None,
+        "penalties": [{"type": p[0], "amount": round(p[1], 1)} for p in penalties]
     }
+    
     if not feedback:
-        feedback = ["Strong push-up with good range and body alignment."]
-    return status, feedback, max(0, min(100, score)), metrics
+        feedback = ["Excellent push-up form!"]
+    
+    return status, feedback, final_score, metrics
 
 
 
@@ -839,11 +999,136 @@ def _analyze_exercise_bicep(kps):
     feedback = feedback_candidates[:3] if feedback_candidates else ["Clean curl mechanics."]
     return status, feedback, int(round(score)), metrics
 
+def _analyze_exercise_with_llm(category: str, action: str, kps):
+    """
+    使用LLM增强的exercise分析，结合基础评分和LLM智能分析
+    """
+    # 首先获取基础评分
+    if action == "squat":
+        status, feedback, score, metrics = _analyze_exercise_squat(kps)
+    elif action == "pushup":
+        status, feedback, score, metrics = _analyze_exercise_pushup(kps)
+    elif action == "bicep_curl":
+        status, feedback, score, metrics = _analyze_exercise_bicep(kps)
+    else:
+        return "unknown", ["Unsupported exercise."], 0, {}
+    
+    # 如果LLM可用，使用LLM进行智能调整
+    if CEREBRAS_API_KEY:
+        try:
+            llm_result = llm_refine_exercise_feedback(action, score, metrics, feedback)
+            if llm_result:
+                # 融合LLM建议和基础评分
+                final_score = int((score * 0.7 + llm_result["score"] * 0.3))  # 70%基础 + 30%LLM
+                final_score = max(0, min(100, final_score))
+                
+                # 合并反馈
+                combined_feedback = []
+                for tip in llm_result["advice"][:2]:  # 取前2个LLM建议
+                    if tip not in combined_feedback:
+                        combined_feedback.append(tip)
+                for tip in feedback:  # 添加基础反馈
+                    if tip not in combined_feedback and len(combined_feedback) < 4:
+                        combined_feedback.append(tip)
+                
+                # 更新状态
+                if final_score >= 90:
+                    final_status = "excellent"
+                elif final_score >= 80:
+                    final_status = "correct"
+                elif final_score >= 65:
+                    final_status = "improvable"
+                else:
+                    final_status = "poor"
+                
+                # 添加LLM信息到metrics
+                metrics["llm_enhanced"] = {
+                    "enabled": True,
+                    "base_score": score,
+                    "llm_score": llm_result["score"],
+                    "final_score": final_score,
+                    "llm_weight": 0.3
+                }
+                
+                return final_status, combined_feedback, final_score, metrics
+        except Exception as e:
+            # LLM失败时使用基础评分
+            pass
+    
+    # 没有LLM或LLM失败时，使用基础评分
+    metrics["llm_enhanced"] = {"enabled": False}
+    return status, feedback, score, metrics
+
+
+def llm_refine_exercise_feedback(action: str, base_score: int, metrics: Dict, baseline_feedback: List[str]) -> Optional[Dict]:
+    """
+    使用LLM优化exercise评分和反馈
+    """
+    if not CEREBRAS_API_KEY:
+        return None
+
+    system_msg = {
+        "role": "system",
+        "content": (
+            "You are an expert fitness trainer. Analyze the exercise form and provide intelligent scoring and feedback. "
+            "Output ONLY valid JSON with keys: {score:int, advice:list[str], form_assessment:str}. "
+            "Rules:\n"
+            f"- Score range: 30-100 (base_score: {base_score})\n"
+            "- Advice: 2-3 specific, actionable tips (≤15 words each)\n"
+            "- Consider exercise-specific form requirements\n"
+            "- Penalize poor form more heavily than reward good form"
+        )
+    }
+
+    user_payload = {
+        "exercise": action,
+        "base_score": base_score,
+        "metrics": {
+            "angle_data": {k: v for k, v in metrics.items() if isinstance(v, (int, float)) and not k.startswith("llm")},
+            "penalties": metrics.get("penalties", [])
+        },
+        "baseline_feedback": baseline_feedback
+    }
+
+    payload = {
+        "model": CEREBRAS_MODEL,
+        "messages": [
+            system_msg,
+            {"role": "user", "content": json.dumps(user_payload)},
+        ],
+        "temperature": 0.2,
+        "max_tokens": 180,
+        "response_format": {"type": "json_object"},
+    }
+    headers = {"Authorization": f"Bearer {CEREBRAS_API_KEY}", "Content-Type": "application/json"}
+
+    try:
+        r = requests.post(CEREBRAS_URL, headers=headers, json=payload, timeout=8)
+        r.raise_for_status()
+        content = r.json().get("choices", [{}])[0].get("message", {}).get("content", "")
+        parsed = json.loads(content)
+
+        score = int(parsed.get("score", base_score))
+        score = max(30, min(100, score))  # 确保在合理范围内
+
+        advice = parsed.get("advice") or baseline_feedback
+        if isinstance(advice, str):
+            advice = [advice]
+
+        return {
+            "score": score,
+            "advice": advice[:3],
+            "form_assessment": parsed.get("form_assessment", "Standard form assessment")
+        }
+    except Exception:
+        return None
+
+
 def _analyze_exercise(category: str, action: str, kps):
-    if action == "squat":      return _analyze_exercise_squat(kps)
-    if action == "pushup":     return _analyze_exercise_pushup(kps)
-    if action == "bicep_curl": return _analyze_exercise_bicep(kps)
-    return "unknown", ["Unsupported exercise."], 0, {}
+    """
+    主要的exercise分析入口，使用LLM增强版本
+    """
+    return _analyze_exercise_with_llm(category, action, kps)
 
 
 # ================================================================
