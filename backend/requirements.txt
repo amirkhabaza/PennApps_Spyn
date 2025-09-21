@@ -8,4 +8,5 @@ starlette
 requests
 google-generativeai
 pymango
+python-dotenv
 # Python 3.10+ required

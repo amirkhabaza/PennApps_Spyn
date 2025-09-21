@@ -5,6 +5,10 @@ import os
 from typing import List, Dict, Optional
 
 import requests
+from dotenv import load_dotenv
+
+# 加载.env文件
+load_dotenv()
 
 # --- Core analyzer comes from your pose_logic.py ---
 try:
