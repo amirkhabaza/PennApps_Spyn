@@ -19,6 +19,9 @@ class Spyn {
         this.initializeChart();
         this.setupIPC();
         this.initializeVoiceHelpers();
+        
+        // Start metrics checking immediately to show current data
+        this.startMetricsChecking();
     }
 
     initializeElements() {
@@ -258,9 +261,7 @@ class Spyn {
     // New method: Start checking metrics.json every 3 seconds
     startMetricsChecking() {
         this.metricsInterval = setInterval(() => {
-            if (this.isMonitoring) {
-                this.checkMetricsAndUpdateStatus();
-            }
+            this.checkMetricsAndUpdateStatus();
         }, 3000); // Check every 3 seconds
     }
 
@@ -275,10 +276,14 @@ class Spyn {
     // New method: Check metrics.json and update overlay status
     async checkMetricsAndUpdateStatus() {
         try {
+            console.log('Dashboard: Checking metrics...');
             const response = await fetch('http://localhost:8000/metrics');
             if (response.ok) {
                 const metrics = await response.json();
                 console.log('Dashboard: Fetched metrics:', metrics);
+                
+                // Always update dashboard variables regardless of monitoring status
+                this.updateDashboardVariables(metrics);
                 
                 // Check the score in last_event
                 if (metrics.last_event && metrics.last_event.score !== undefined) {
@@ -292,10 +297,7 @@ class Spyn {
                     }
                     
                     // Always update overlay with current score (even if status didn't change)
-                    this.updateOverlayStatus(score);
-                    
-                    // Update dashboard variables in real-time
-                    this.updateDashboardVariables(metrics);
+                    this.updateOverlayStatus(score, metrics);
                     
                     // Update posture data for tracking
                     this.postureData.push({
@@ -316,10 +318,11 @@ class Spyn {
     }
 
     // New method: Update overlay status based on current posture
-    updateOverlayStatus(currentScore) {
+    updateOverlayStatus(currentScore, metrics = null) {
         const statusData = {
             isGood: this.isGoodPosture,
-            score: currentScore || (this.postureData.length > 0 ? this.postureData[this.postureData.length - 1].score : 0)
+            score: currentScore || (this.postureData.length > 0 ? this.postureData[this.postureData.length - 1].score : 0),
+            metrics: metrics // Include full metrics data
         };
         console.log('Dashboard: Sending status update:', statusData);
         // Send status update to overlay window
@@ -355,27 +358,47 @@ class Spyn {
     // New method: Update dashboard variables in real-time
     updateDashboardVariables(metrics) {
         try {
+            console.log('Dashboard: Updating variables with metrics:', metrics);
+            console.log('Dashboard: Element availability:', {
+                overallScore: !!this.overallScore,
+                sessionDuration: !!this.sessionDuration,
+                goodPostureTime: !!this.goodPostureTime,
+                corrections: !!this.corrections
+            });
+            
             // Update overall score
             if (this.overallScore && metrics.overall_score !== undefined) {
                 this.overallScore.textContent = `${metrics.overall_score}%`;
+                console.log(`Dashboard: Updated overall score to ${metrics.overall_score}%`);
+            } else {
+                console.log('Dashboard: overallScore element not found or no overall_score in metrics');
             }
             
             // Update good posture percentage
             if (this.goodPostureTime && metrics.good_posture_pct !== undefined) {
                 this.goodPostureTime.textContent = `${metrics.good_posture_pct}%`;
+                console.log(`Dashboard: Updated good posture time to ${metrics.good_posture_pct}%`);
+            } else {
+                console.log('Dashboard: goodPostureTime element not found or no good_posture_pct in metrics');
             }
             
             // Update corrections count
             if (this.corrections && metrics.corrections !== undefined) {
                 this.corrections.textContent = metrics.corrections.toString();
+                console.log(`Dashboard: Updated corrections to ${metrics.corrections}`);
+            } else {
+                console.log('Dashboard: corrections element not found or no corrections in metrics');
             }
             
-            // Update session duration (calculate from current time)
-            if (this.sessionDuration && this.sessionStartTime) {
-                const sessionDuration = Math.floor((Date.now() - this.sessionStartTime) / 1000);
+            // Update session duration using metrics data
+            if (this.sessionDuration && metrics.session_duration_sec !== undefined) {
+                const sessionDuration = metrics.session_duration_sec;
                 const minutes = Math.floor(sessionDuration / 60);
                 const seconds = sessionDuration % 60;
                 this.sessionDuration.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                console.log(`Dashboard: Updated session duration to ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+            } else {
+                console.log('Dashboard: sessionDuration element not found or no session_duration_sec in metrics');
             }
             
             console.log('Dashboard: Variables updated with real-time metrics');
@@ -571,8 +594,14 @@ class Spyn {
                 // Initialize camera for exercise analysis
                 this.initializeExerciseCamera();
                 
-                // Start exercise simulation
-                this.startExerciseSimulation();
+                // Start fast_demo mode 2 (EXERCISE) instead of simulation
+                this.startFastDemoExercise();
+                
+                // Start exercise metrics checking
+                this.startExerciseMetricsChecking();
+                
+                // Start voice assistant for exercise feedback
+                this.startExerciseVoiceAssistant();
                 
                 this.exerciseActive = true;
                 console.log('Exercise analysis started');
@@ -656,6 +685,15 @@ class Spyn {
             this.exerciseInterval = null;
         }
 
+        // Stop exercise metrics checking
+        this.stopExerciseMetricsChecking();
+
+        // Stop voice assistant
+        this.stopExerciseVoiceAssistant();
+
+        // Stop fast_demo exercise
+        this.stopFastDemoExercise();
+
         // Reset button
         if (this.startExerciseBtn) {
             this.startExerciseBtn.textContent = 'Start Exercise Analysis';
@@ -698,6 +736,153 @@ class Spyn {
                 correctionsMade.textContent = currentCorrections + 1;
             }
         }, 3000); // Update every 3 seconds
+    }
+
+    // New method: Start fast_demo mode 2 (EXERCISE)
+    startFastDemoExercise() {
+        console.log('Starting fast_demo exercise mode...');
+        // Send IPC message to main process to start fast_demo with exercise mode
+        ipcRenderer.invoke('start-fast-demo-exercise');
+    }
+
+    // New method: Stop fast_demo exercise
+    stopFastDemoExercise() {
+        console.log('Stopping fast_demo exercise mode...');
+        // Send IPC message to main process to stop fast_demo
+        ipcRenderer.invoke('stop-fast-demo');
+    }
+
+    // New method: Start exercise metrics checking
+    startExerciseMetricsChecking() {
+        this.exerciseMetricsInterval = setInterval(() => {
+            this.checkExerciseMetricsAndUpdate();
+        }, 2000); // Check every 2 seconds for more responsive updates
+    }
+
+    // New method: Stop exercise metrics checking
+    stopExerciseMetricsChecking() {
+        if (this.exerciseMetricsInterval) {
+            clearInterval(this.exerciseMetricsInterval);
+            this.exerciseMetricsInterval = null;
+        }
+    }
+
+    // New method: Check exercise metrics and update display
+    async checkExerciseMetricsAndUpdate() {
+        try {
+            console.log('Exercise: Checking metrics...');
+            const response = await fetch('http://localhost:8000/metrics');
+            if (response.ok) {
+                const metrics = await response.json();
+                console.log('Exercise: Fetched metrics:', metrics);
+                this.updateExerciseVariables(metrics);
+            } else {
+                console.log('Exercise: Failed to fetch metrics, status:', response.status);
+            }
+        } catch (error) {
+            console.error('Exercise: Error checking metrics:', error);
+        }
+    }
+
+    // New method: Update exercise variables from metrics
+    updateExerciseVariables(metrics) {
+        try {
+            console.log('Exercise: Updating variables with metrics:', metrics);
+            
+            // Update form score (use last_event score - current exercise form quality)
+            const formScore = document.getElementById('formScore');
+            if (formScore && metrics.last_event && metrics.last_event.score !== undefined) {
+                formScore.textContent = `${metrics.last_event.score}%`;
+                console.log(`Exercise: Updated form score to ${metrics.last_event.score}%`);
+            }
+            
+            // Update reps count (use overall_score as a proxy for exercise progress)
+            const repsCount = document.getElementById('repsCount');
+            if (repsCount && metrics.overall_score !== undefined) {
+                // Use overall_score as a rough indicator of exercise progress
+                repsCount.textContent = Math.floor(metrics.overall_score / 10).toString();
+                console.log(`Exercise: Updated reps count to ${Math.floor(metrics.overall_score / 10)}`);
+            }
+            
+            // Update corrections made (use actual corrections count)
+            const correctionsMade = document.getElementById('correctionsMade');
+            if (correctionsMade && metrics.corrections !== undefined) {
+                correctionsMade.textContent = metrics.corrections.toString();
+                console.log(`Exercise: Updated corrections to ${metrics.corrections}`);
+            }
+            
+            // Update session time (use session_duration_sec)
+            const timeElapsed = document.getElementById('timeElapsed');
+            if (timeElapsed && metrics.session_duration_sec !== undefined) {
+                const sessionDuration = metrics.session_duration_sec;
+                const minutes = Math.floor(sessionDuration / 60);
+                const seconds = sessionDuration % 60;
+                timeElapsed.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                console.log(`Exercise: Updated session time to ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+            }
+            
+            // Store current feedback for voice assistant
+            if (metrics.last_event && metrics.last_event.feedback) {
+                this.currentExerciseFeedback = metrics.last_event.feedback;
+            }
+            
+            console.log('Exercise: Variables updated successfully');
+        } catch (error) {
+            console.error('Exercise: Error updating variables:', error);
+        }
+    }
+
+    // New method: Start voice assistant for exercise feedback
+    startExerciseVoiceAssistant() {
+        this.exerciseVoiceInterval = setInterval(() => {
+            this.speakExerciseFeedback();
+        }, 5000); // Speak every 5 seconds
+    }
+
+    // New method: Stop voice assistant
+    stopExerciseVoiceAssistant() {
+        if (this.exerciseVoiceInterval) {
+            clearInterval(this.exerciseVoiceInterval);
+            this.exerciseVoiceInterval = null;
+        }
+    }
+
+    // New method: Speak exercise feedback
+    async speakExerciseFeedback() {
+        if (!this.currentExerciseFeedback || this.currentExerciseFeedback.length === 0) {
+            return;
+        }
+
+        try {
+            // Get the first feedback item (most important)
+            const feedback = this.currentExerciseFeedback[0];
+            if (feedback && !feedback.startsWith('⚠️')) {
+                console.log('Exercise: Speaking feedback:', feedback);
+                
+                // Send to backend for text-to-speech
+                const response = await fetch('http://localhost:8000/speak', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ text: feedback })
+                });
+
+                if (response.ok) {
+                    // Create audio element and play
+                    const audioBlob = await response.blob();
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    const audio = new Audio(audioUrl);
+                    audio.play().catch(error => {
+                        console.error('Exercise: Error playing audio:', error);
+                    });
+                } else {
+                    console.error('Exercise: Failed to get speech, status:', response.status);
+                }
+            }
+        } catch (error) {
+            console.error('Exercise: Error speaking feedback:', error);
+        }
     }
 
     initializeKeyboardShortcuts() {
@@ -1218,6 +1403,11 @@ class SpynOverlay {
                 this.updatePosturePercentage();
             }
             
+            // Update timer with metrics data if available
+            if (status.metrics) {
+                this.updateTimer(status.metrics);
+            }
+            
             console.log(`Overlay: Posture status updated to ${this.isGoodPosture ? 'Good' : 'Bad'} (score: ${status.score || 'N/A'})`);
         }
     }
@@ -1280,25 +1470,33 @@ class SpynOverlay {
         console.log('Timer started with start time:', this.sessionStartTime);
     }
     
-    updateTimer() {
-        if (this.sessionStartTime) {
+    updateTimer(metrics = null) {
+        let timeString = '00:00';
+        
+        // Use metrics data if available, otherwise fall back to local calculation
+        if (metrics && metrics.session_duration_sec !== undefined) {
+            const sessionDuration = metrics.session_duration_sec;
+            const minutes = Math.floor(sessionDuration / 60);
+            const seconds = sessionDuration % 60;
+            timeString = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        } else if (this.sessionStartTime) {
             const elapsed = Date.now() - this.sessionStartTime;
             const minutes = Math.floor(elapsed / 60000);
             const seconds = Math.floor((elapsed % 60000) / 1000);
-            const timeString = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-            
-            // Re-find elements in case they weren't available initially
-            if (!this.sessionTimer) {
-                this.sessionTimer = document.getElementById('sessionTimer');
-            }
-            
-            // Update timer
-            if (this.sessionTimer) {
-                this.sessionTimer.textContent = timeString;
-            }
-            
-            console.log('Timer updated:', timeString);
+            timeString = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
         }
+        
+        // Re-find elements in case they weren't available initially
+        if (!this.sessionTimer) {
+            this.sessionTimer = document.getElementById('sessionTimer');
+        }
+        
+        // Update timer
+        if (this.sessionTimer) {
+            this.sessionTimer.textContent = timeString;
+        }
+        
+        console.log('Timer updated:', timeString);
     }
 
     startPostureSimulation() {

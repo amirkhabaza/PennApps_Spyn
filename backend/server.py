@@ -28,7 +28,9 @@ def get_metrics():
     """
     Return latest metrics.json content for frontend.
     """
-    path = "./metrics.json"
+    # Use absolute path to metrics.json in the backend folder
+    backend_dir = os.path.dirname(os.path.abspath(__file__))
+    path = os.path.join(backend_dir, "metrics.json")
     if not os.path.exists(path):
         return {"error": "metrics.json not found"}
     try:

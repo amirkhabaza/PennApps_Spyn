@@ -566,6 +566,41 @@ class SpynApp {
         });
     }
 
+    startFastDemoExercise() {
+        if (this.fastDemoProcess) {
+            console.log('Fast demo already running, stopping and restarting in exercise mode...');
+            this.stopFastDemo();
+        }
+
+        const { spawn } = require('child_process');
+        const backendPath = path.join(__dirname, '..', 'backend');
+        
+        console.log('Starting fast_demo in exercise mode...');
+        // Use the wrapper script that automatically switches to exercise mode
+        this.fastDemoProcess = spawn('python', ['fast_demo_exercise.py'], {
+            cwd: backendPath,
+            stdio: 'pipe'
+        });
+
+        this.fastDemoProcess.stdout.on('data', (data) => {
+            console.log(`Fast demo exercise: ${data}`);
+        });
+
+        this.fastDemoProcess.stderr.on('data', (data) => {
+            console.error(`Fast demo exercise error: ${data}`);
+        });
+
+        this.fastDemoProcess.on('close', (code) => {
+            console.log(`Fast demo exercise process exited with code ${code}`);
+            this.fastDemoProcess = null;
+        });
+
+        this.fastDemoProcess.on('error', (err) => {
+            console.error('Failed to start fast demo exercise process:', err);
+            this.fastDemoProcess = null;
+        });
+    }
+
     stopFastDemo() {
         if (this.fastDemoProcess) {
             console.log('Stopping fast_demo process...');
@@ -711,6 +746,11 @@ class SpynApp {
         // Fast demo control handlers
         ipcMain.handle('start-fast-demo', () => {
             this.startFastDemo();
+            return { success: true };
+        });
+
+        ipcMain.handle('start-fast-demo-exercise', () => {
+            this.startFastDemoExercise();
             return { success: true };
         });
 
