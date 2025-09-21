@@ -1,0 +1,17 @@
+{
+  "overall_score": 78,
+  "session_duration_sec": 248,
+  "good_posture_pct": 33.4,
+  "corrections": 133,
+  "last_event": {
+    "t": 1758414114.690298,
+    "score": 76,
+    "status": "improvable",
+    "feedback": [
+      "Lift your gaze slightly and lengthen the back of your neck.",
+      "Severe head drop—raise your head and extend the neck.",
+      "Maintain gap between ears and shoulders."
+    ]
+  },
+  "alerts": []
+}
