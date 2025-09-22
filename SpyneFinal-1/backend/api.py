@@ -27,7 +27,7 @@ except Exception:
 
 # Put your key here ONCE so you don't need to input each run.
 # (You can also override via env var GEMINI_API_KEY.)
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "AIzaSyA3xTqUXU7G6FqhmfLgGVWquCgX7lYmpOY")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "Enter Yours Here")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")  # safe default
 
 if genai and GEMINI_API_KEY:
