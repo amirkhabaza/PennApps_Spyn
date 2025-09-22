@@ -10,7 +10,7 @@ import io
 app = FastAPI()
 
 # ElevenLabs API configuration
-ELEVENLABS_API_KEY = "Ap2_1039e172-f84f-4874-b905-a668796d765f"
+ELEVENLABS_API_KEY = "Enter yours here"
 ELEVENLABS_VOICE_ID = "pNInz6obpgDQGcFmaJgB"  # Adam voice (default)
 ELEVENLABS_URL = f"https://api.elevenlabs.io/v1/text-to-speech/{ELEVENLABS_VOICE_ID}"
 
