@@ -863,12 +863,45 @@ body {
     text-align: center;
     border: 1px solid rgba(0, 191, 255, 0.2);
     transition: all 0.3s ease;
+    cursor: pointer;
+    position: relative;
 }
 
 .exercise-card:hover {
     transform: translateY(-2px);
     border-color: #00bfff;
     box-shadow: 0 8px 32px rgba(0, 191, 255, 0.2);
+}
+
+.exercise-card.selected {
+    background: rgba(0, 191, 255, 0.1);
+    border-color: #00bfff;
+    box-shadow: 0 8px 32px rgba(0, 191, 255, 0.3);
+}
+
+.exercise-card.selected .exercise-status {
+    color: #00ff88;
+    font-weight: 600;
+}
+
+.exercise-card:not(.selected) .exercise-status {
+    color: #888;
+}
+
+.exercise-subtitle {
+    color: #888;
+    margin-bottom: 2rem;
+    font-size: 1rem;
+}
+
+.exercise-selection-message {
+    background: rgba(255, 100, 100, 0.1);
+    border: 1px solid rgba(255, 100, 100, 0.3);
+    border-radius: 8px;
+    padding: 1rem;
+    text-align: center;
+    color: #ff6666;
+    margin-top: 1rem;
 }
 
 .exercise-icon {

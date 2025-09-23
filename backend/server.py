@@ -78,15 +78,16 @@ async def speak_text(request: dict):
                 headers={"Content-Disposition": "inline; filename=speech.mp3"}
             )
         else:
-            raise HTTPException(
-                status_code=response.status_code, 
-                detail=f"ElevenLabs API error: {response.text}"
-            )
+            # If ElevenLabs API fails, return a simple text response
+            print(f"ElevenLabs API error: {response.status_code} - {response.text}")
+            return {"message": f"Voice synthesis unavailable: {response.text}", "text": text}
             
     except requests.exceptions.RequestException as e:
-        raise HTTPException(status_code=500, detail=f"Request error: {str(e)}")
+        print(f"Request error: {e}")
+        return {"message": f"Voice synthesis unavailable: {str(e)}", "text": text}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+        print(f"Internal error: {e}")
+        return {"message": f"Voice synthesis unavailable: {str(e)}", "text": text}
 
 @app.get("/")
 def root():

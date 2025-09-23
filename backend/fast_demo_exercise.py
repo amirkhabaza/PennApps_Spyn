@@ -16,8 +16,8 @@ def main():
     
     print("Starting fast_demo in exercise mode...")
     
-    # Start fast_demo.py
-    process = subprocess.Popen([sys.executable, fast_demo_path], 
+    # Start fast_demo.py with exercise mode argument
+    process = subprocess.Popen([sys.executable, fast_demo_path, 'exercise'], 
                              cwd=script_dir,
                              stdin=subprocess.PIPE,
                              stdout=subprocess.PIPE,

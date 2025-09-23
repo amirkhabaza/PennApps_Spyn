@@ -102,24 +102,30 @@
 
                     <div class="exercise-content">
                         <div class="exercise-info">
-                            <h3>Available Exercises</h3>
+                            <h3>Select an Exercise</h3>
+                            <p class="exercise-subtitle">Choose one of the three available exercises to begin analysis</p>
                             <div class="exercise-grid">
-                                <div class="exercise-card">
-                                    <h4>Deadlift</h4>
-                                    <p>Analyze back posture and hip hinge movement</p>
-                                </div>
-                                <div class="exercise-card">
-                                    <h4>Push-ups</h4>
-                                    <p>Monitor body alignment and core stability</p>
-                                </div>
-                                <div class="exercise-card">
+                                <div class="exercise-card" data-exercise="squat">
+                                    <div class="exercise-icon">🏋️</div>
                                     <h4>Squats</h4>
                                     <p>Track knee alignment and depth</p>
+                                    <div class="exercise-status">Not Selected</div>
                                 </div>
-                                <div class="exercise-card">
-                                    <h4>Planks</h4>
-                                    <p>Ensure straight line from head to heels</p>
+                                <div class="exercise-card" data-exercise="pushup">
+                                    <div class="exercise-icon">💪</div>
+                                    <h4>Push-ups</h4>
+                                    <p>Monitor body alignment and core stability</p>
+                                    <div class="exercise-status">Not Selected</div>
                                 </div>
+                                <div class="exercise-card" data-exercise="bicep_curl">
+                                    <div class="exercise-icon">💪</div>
+                                    <h4>Bicep Curls</h4>
+                                    <p>Analyze form, stability, and range of motion</p>
+                                    <div class="exercise-status">Not Selected</div>
+                                </div>
+                            </div>
+                            <div class="exercise-selection-message" id="exerciseSelectionMessage" style="display: none;">
+                                <p>Please select an exercise before starting analysis</p>
                             </div>
                         </div>
 

@@ -13,6 +13,7 @@ class Spyn {
         this.isDragging = false;
         this.dragOffset = { x: 0, y: 0 };
         this.exerciseActive = false;
+        this.selectedExercise = null;
         
         this.initializeElements();
         this.bindEvents();
@@ -32,6 +33,8 @@ class Spyn {
         // Exercise elements
         this.startExerciseBtn = document.getElementById('startExerciseBtn');
         this.exerciseAnalysis = document.getElementById('exerciseAnalysis');
+        this.exerciseCards = document.querySelectorAll('.exercise-card');
+        this.exerciseSelectionMessage = document.getElementById('exerciseSelectionMessage');
         
         // Modal elements
         this.shortcutsBtn = document.getElementById('shortcutsBtn');
@@ -68,6 +71,11 @@ class Spyn {
         if (stopExerciseBtn) {
             stopExerciseBtn.addEventListener('click', () => this.stopExerciseAnalysis());
         }
+        
+        // Exercise selection events
+        this.exerciseCards.forEach(card => {
+            card.addEventListener('click', () => this.selectExercise(card));
+        });
         
         // Tab switching events
         this.initializeTabs();
@@ -258,11 +266,11 @@ class Spyn {
         return Math.round((goodCount / this.postureData.length) * 100);
     }
 
-    // New method: Start checking metrics.json every 3 seconds
+    // New method: Start checking metrics.json every 0.1 seconds
     startMetricsChecking() {
         this.metricsInterval = setInterval(() => {
             this.checkMetricsAndUpdateStatus();
-        }, 3000); // Check every 3 seconds
+        }, 100); // Check every 0.1 seconds (100ms)
     }
 
     // New method: Stop metrics checking
@@ -575,7 +583,45 @@ class Spyn {
         }
     }
 
+    selectExercise(card) {
+        // Remove selected class from all cards
+        this.exerciseCards.forEach(c => c.classList.remove('selected'));
+        
+        // Add selected class to clicked card
+        card.classList.add('selected');
+        
+        // Get exercise name from data attribute
+        this.selectedExercise = card.getAttribute('data-exercise');
+        
+        // Update status text
+        const statusElement = card.querySelector('.exercise-status');
+        if (statusElement) {
+            statusElement.textContent = 'Selected';
+        }
+        
+        // Hide selection message
+        if (this.exerciseSelectionMessage) {
+            this.exerciseSelectionMessage.style.display = 'none';
+        }
+        
+        // Enable start button
+        if (this.startExerciseBtn) {
+            this.startExerciseBtn.disabled = false;
+            this.startExerciseBtn.style.opacity = '1';
+        }
+        
+        console.log('Exercise selected:', this.selectedExercise);
+    }
+
     startExerciseAnalysis() {
+        // Check if exercise is selected
+        if (!this.selectedExercise) {
+            if (this.exerciseSelectionMessage) {
+                this.exerciseSelectionMessage.style.display = 'block';
+            }
+            return;
+        }
+        
         if (this.exerciseActive) {
             // Stop exercise analysis
             this.stopExerciseAnalysis();
@@ -604,7 +650,7 @@ class Spyn {
                 this.startExerciseVoiceAssistant();
                 
                 this.exerciseActive = true;
-                console.log('Exercise analysis started');
+                console.log('Exercise analysis started for:', this.selectedExercise);
             }
         }
     }
@@ -706,6 +752,16 @@ class Spyn {
             this.exerciseAnalysis.classList.add('hidden');
         }
 
+        // Reset exercise selection
+        this.exerciseCards.forEach(card => {
+            card.classList.remove('selected');
+            const statusElement = card.querySelector('.exercise-status');
+            if (statusElement) {
+                statusElement.textContent = 'Not Selected';
+            }
+        });
+        this.selectedExercise = null;
+
         this.exerciseActive = false;
         console.log('Exercise analysis stopped');
     }
@@ -756,7 +812,7 @@ class Spyn {
     startExerciseMetricsChecking() {
         this.exerciseMetricsInterval = setInterval(() => {
             this.checkExerciseMetricsAndUpdate();
-        }, 2000); // Check every 2 seconds for more responsive updates
+        }, 100); // Check every 0.1 seconds (100ms) for more responsive updates
     }
 
     // New method: Stop exercise metrics checking
@@ -826,6 +882,11 @@ class Spyn {
                 this.currentExerciseFeedback = metrics.last_event.feedback;
             }
             
+            // Store current form score for voice feedback
+            if (metrics.last_event && metrics.last_event.score !== undefined) {
+                this.currentFormScore = metrics.last_event.score;
+            }
+            
             console.log('Exercise: Variables updated successfully');
         } catch (error) {
             console.error('Exercise: Error updating variables:', error);
@@ -836,7 +897,7 @@ class Spyn {
     startExerciseVoiceAssistant() {
         this.exerciseVoiceInterval = setInterval(() => {
             this.speakExerciseFeedback();
-        }, 5000); // Speak every 5 seconds
+        }, 2000); // Speak every 2 seconds for more responsive feedback
     }
 
     // New method: Stop voice assistant
@@ -859,13 +920,25 @@ class Spyn {
             if (feedback && !feedback.startsWith('⚠️')) {
                 console.log('Exercise: Speaking feedback:', feedback);
                 
+                // Format feedback for voice - make it more natural
+                let voiceText = feedback;
+                if (this.currentFormScore !== undefined) {
+                    if (this.currentFormScore >= 85) {
+                        voiceText = `Excellent! ${feedback} Your score is ${this.currentFormScore} percent.`;
+                    } else if (this.currentFormScore >= 70) {
+                        voiceText = `${feedback} Current score: ${this.currentFormScore} percent. Keep improving!`;
+                    } else {
+                        voiceText = `${feedback} Score: ${this.currentFormScore} percent. Focus on form.`;
+                    }
+                }
+                
                 // Send to backend for text-to-speech
                 const response = await fetch('http://localhost:8000/speak', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ text: feedback })
+                    body: JSON.stringify({ text: voiceText })
                 });
 
                 if (response.ok) {

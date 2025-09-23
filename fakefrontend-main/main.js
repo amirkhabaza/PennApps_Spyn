@@ -1,6 +1,38 @@
 const { app, BrowserWindow, ipcMain, screen, globalShortcut } = require('electron');
 const path = require('path');
 
+// Suppress Electron console warnings (temporarily disabled for debugging)
+// const originalConsoleWarn = console.warn;
+// const originalConsoleError = console.error;
+
+// console.warn = function(...args) {
+//     const message = args.join(' ');
+//     const suppressedWarnings = [
+//         'AVCaptureDeviceTypeExternal',
+//         'NSCameraUseContinuityCameraDeviceType',
+//         'Add NSCameraUseContinuityCameraDeviceType to your Info.plist'
+//     ];
+//     
+//     const shouldSuppress = suppressedWarnings.some(warning => message.includes(warning));
+//     if (!shouldSuppress) {
+//         originalConsoleWarn.apply(console, args);
+//     }
+// };
+
+// console.error = function(...args) {
+//     const message = args.join(' ');
+//     const suppressedWarnings = [
+//         'AVCaptureDeviceTypeExternal',
+//         'NSCameraUseContinuityCameraDeviceType',
+//         'Add NSCameraUseContinuityCameraDeviceType to your Info.plist'
+//     ];
+//     
+//     const shouldSuppress = suppressedWarnings.some(warning => message.includes(warning));
+//     if (!shouldSuppress) {
+//         originalConsoleError.apply(console, args);
+//     }
+// };
+
 class SpynApp {
     constructor() {
         this.mainWindow = null;
@@ -12,6 +44,51 @@ class SpynApp {
         this.isCameraVisible = false;
         this.topLevelInterval = null;
         this.fastDemoProcess = null;
+    }
+
+    // Helper function to create clean environment for Python processes
+    getCleanEnvironment() {
+        return {
+            ...process.env,
+            TF_CPP_MIN_LOG_LEVEL: '3',
+            GLOG_minloglevel: '3',
+            GLOG_logtostderr: '0',
+            GLOG_alsologtostderr: '0',
+            GLOG_log_dir: '/tmp',
+            MEDIAPIPE_DISABLE_GPU: '1',
+            OPENCV_VIDEOIO_PRIORITY_AVFOUNDATION: '1',
+            OPENCV_VIDEOIO_PRIORITY_MSMF: '0',
+            OPENCV_VIDEOIO_PRIORITY_FFMPEG: '0',
+            OPENCV_VIDEOIO_PRIORITY_GSTREAMER: '0',
+            OPENCV_VIDEOIO_PRIORITY_V4L2: '0',
+            OPENCV_VIDEOIO_PRIORITY_DSHOW: '0',
+            OPENCV_VIDEOIO_DEBUG: '0',
+            OPENCV_VIDEOIO_PRIORITY_CAP_AVFOUNDATION: '1',
+            PYTHONWARNINGS: 'ignore',
+            URLLIB3_DISABLE_WARNINGS: '1'
+        };
+    }
+
+    // Helper function to filter stderr warnings
+    shouldSuppressWarning(dataStr) {
+        const suppressedWarnings = [
+            'AVCaptureDeviceTypeExternal',
+            'NSCameraUseContinuityCameraDeviceType',
+            'WARNING: All log messages before absl::InitializeLog()',
+            'gl_context.cc',
+            'TensorFlow Lite XNNPACK delegate',
+            'inference_feedback_manager',
+            'landmark_projection_calculator',
+            'NORM_RECT without IMAGE_DIMENSIONS',
+            'W0000', // Suppress all glog warnings
+            'I0000', // Suppress all glog info messages
+            'urllib3', // Suppress urllib3 warnings
+            'NotOpenSSLWarning', // Suppress SSL warnings
+            'warnings.warn', // Suppress generic warning calls
+            'LibreSSL' // Suppress LibreSSL warnings
+        ];
+        
+        return suppressedWarnings.some(warning => dataStr.includes(warning));
     }
 
     createMainWindow() {
@@ -542,9 +619,11 @@ class SpynApp {
         const backendPath = path.join(__dirname, '..', 'backend');
         
         console.log('Starting fast_demo process...');
-        this.fastDemoProcess = spawn('python', ['fast_demo.py'], {
+        
+        this.fastDemoProcess = spawn('python3', ['fast_demo.py'], {
             cwd: backendPath,
-            stdio: 'pipe'
+            stdio: 'pipe',
+            env: this.getCleanEnvironment()
         });
 
         this.fastDemoProcess.stdout.on('data', (data) => {
@@ -552,7 +631,10 @@ class SpynApp {
         });
 
         this.fastDemoProcess.stderr.on('data', (data) => {
-            console.error(`Fast demo error: ${data}`);
+            const dataStr = data.toString();
+            if (!this.shouldSuppressWarning(dataStr)) {
+                console.error(`Fast demo error: ${data}`);
+            }
         });
 
         this.fastDemoProcess.on('close', (code) => {
@@ -576,10 +658,12 @@ class SpynApp {
         const backendPath = path.join(__dirname, '..', 'backend');
         
         console.log('Starting fast_demo in exercise mode...');
+        
         // Use the wrapper script that automatically switches to exercise mode
-        this.fastDemoProcess = spawn('python', ['fast_demo_exercise.py'], {
+        this.fastDemoProcess = spawn('python3', ['fast_demo_exercise.py'], {
             cwd: backendPath,
-            stdio: 'pipe'
+            stdio: 'pipe',
+            env: this.getCleanEnvironment()
         });
 
         this.fastDemoProcess.stdout.on('data', (data) => {
@@ -587,7 +671,10 @@ class SpynApp {
         });
 
         this.fastDemoProcess.stderr.on('data', (data) => {
-            console.error(`Fast demo exercise error: ${data}`);
+            const dataStr = data.toString();
+            if (!this.shouldSuppressWarning(dataStr)) {
+                console.error(`Fast demo exercise error: ${data}`);
+            }
         });
 
         this.fastDemoProcess.on('close', (code) => {

@@ -1,0 +1,13 @@
+Backend Only (Fully Working):
+cd /Users/ritvikshah/Desktop/SpyneFinal-1/backend
+./start_clean.sh
+
+Complete Application:
+cd /Users/ritvikshah/Desktop/SpyneFinal-1
+./start_app_clean.sh
+
+Stop Everything:
+cd /Users/ritvikshah/Desktop/SpyneFinal-1
+./stop_app_complete.sh
+
+./kill_everything.sh

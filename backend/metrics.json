@@ -1,15 +1,13 @@
 {
-  "overall_score": 64,
-  "session_duration_sec": 225,
-  "good_posture_pct": 17.5,
-  "corrections": 126,
+  "overall_score": 88,
+  "session_duration_sec": 49,
+  "good_posture_pct": 61.7,
+  "corrections": 219,
   "last_event": {
-    "t": 1758439894.170613,
-    "score": 69,
-    "status": "poor",
+    "t": 1758480522.27248,
+    "score": 95,
+    "status": "correct",
     "feedback": [
-      "Bring head over shoulders; imagine a string pulling the crown upward.",
-      "Gently tuck the chin; keep the nose close to shoulder line.",
       "Keep space between chin and shoulders."
     ]
   },
